@@ -185,6 +185,7 @@ enum msm_sensor_camera_id_t {
 enum cci_i2c_master_t {
 	MASTER_0,
 	MASTER_1,
+	MASTER_MAX,
 };
 
 struct msm_sensor_info_t {

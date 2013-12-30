@@ -1842,8 +1842,8 @@ continue_monitor:
 
 #if defined(CONFIG_SAMSUNG_BATTERY_ENG_TEST)
 	dev_info(battery->dev,
-		"%s: battery->stability_test(%d)\n",
-		__func__, battery->stability_test);
+			"%s: battery->stability_test(%d), battery->eng_not_full_status(%d)\n",
+			__func__, battery->stability_test, battery->eng_not_full_status);
 #endif
 	power_supply_changed(&battery->psy_bat);
 
@@ -2517,6 +2517,7 @@ ssize_t sec_bat_store_attrs(
 				battery->pdata->charging_current[
 					POWER_SUPPLY_TYPE_USB].fast_charging_current = x;
 				if (x > 500) {
+					battery->eng_not_full_status = true;
 					battery->pdata->temp_check_type =
 						SEC_BATTERY_TEMP_CHECK_NONE;
 					battery->pdata->charging_total_time =
@@ -2551,6 +2552,7 @@ ssize_t sec_bat_store_attrs(
 				"%s: BATT_STABILITY_TEST(%d)\n", __func__, x);
 			if (x) {
 				battery->stability_test = true;
+				battery->eng_not_full_status = true;
 				value.intval = POWER_SUPPLY_TYPE_WIRELESS;
 				psy_do_property("sec-charger", set,
 					POWER_SUPPLY_PROP_CHARGE_TYPE, value);
@@ -2848,11 +2850,22 @@ static int sec_bat_get_property(struct power_supply *psy,
 		val->intval = battery->charging_mode;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
+#if defined(CONFIG_SAMSUNG_BATTERY_ENG_TEST)
+		if (battery->status == POWER_SUPPLY_STATUS_FULL) {
+			if(battery->eng_not_full_status == true)
+				val->intval = battery->capacity;
+			else
+				val->intval = 100;
+		} else {
+			val->intval = battery->capacity;
+		}
+#else
 		/* In full-charged status, SOC is always 100% */
 		if (battery->status == POWER_SUPPLY_STATUS_FULL)
 			val->intval = 100;
 		else
 			val->intval = battery->capacity;
+#endif
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = battery->temperature;
@@ -3028,6 +3041,7 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
 	battery->wc_enable = 1;
 #if defined(CONFIG_SAMSUNG_BATTERY_ENG_TEST)
 	battery->stability_test = 0;
+	battery->eng_not_full_status = 0;
 #endif
 
 	alarm_init(&battery->event_termination_alarm,

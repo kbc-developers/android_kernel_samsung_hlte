@@ -48,6 +48,7 @@
 #endif
 #include "barcode_emul_ice4_hlte.h"
 #include <linux/err.h>
+#include <mach/gpiomux.h>
 
 #if defined(TEST_DEBUG)
 #define pr_barcode	pr_emerg
@@ -122,7 +123,7 @@ static struct mutex		en_mutex;
 static struct i2c_client *g_client;
 #if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)\
 	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)\
-	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3G_CHN_CMCC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
+	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU)
 bool fw_dl_complete;
 #else
 static bool fw_dl_complete;
@@ -181,6 +182,25 @@ static int ice4_clock_en(int onoff)
 	static struct clk *fpga_main_src_clk;
 	static struct clk *fpga_main_clk;
 #if defined(CONFIG_MACH_H3GDUOS)
+	if (onoff) {
+		int rc = 0;
+		
+		//msm_tlmm_misc_reg_write(TLMM_SPARE_REG, 0x1);
+		rc = gpio_request(GPIO_FPGA_MAIN_CLK, "fpga_main_clk");
+
+		if (rc) {
+			pr_err("'%s'(%d) gpio_request failed, rc=%d\n",
+				"GPIO_FPGA_MAIN_CLK", GPIO_FPGA_MAIN_CLK, rc);
+			
+			gpio_free(GPIO_FPGA_MAIN_CLK);
+			return 0;
+		}
+		//gpio_direction_output(GPIO_FPGA_MAIN_CLK, 0);
+	} else {
+		//msm_tlmm_misc_reg_write(TLMM_SPARE_REG, 0x5);
+		gpio_free(GPIO_FPGA_MAIN_CLK);
+	}   
+
       if (!fpga_main_src_clk){
       	fpga_main_src_clk = clk_get(NULL, "gp1_src_clk");
       }
@@ -290,8 +310,10 @@ static void barcode_gpio_config(void)
 		GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	gpio_tlmm_config(GPIO_CFG(g_pdata->spi_clk, 0,
 		GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+#if !defined(CONFIG_MACH_H3GDUOS)
 	gpio_tlmm_config(GPIO_CFG(GPIO_FPGA_MAIN_CLK, \
 		2, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), GPIO_CFG_ENABLE);	
+#endif
 
 	gpio_request(g_pdata->cresetb, "irda_creset");
 	gpio_direction_output(g_pdata->cresetb, 0);
@@ -306,8 +328,7 @@ static void barcode_gpio_config(void)
 
 }
 #if defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_HLTELGT)\
-	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)\
-	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3G_CHN_CMCC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
+	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
 static void barcode_gpio_reconfig(void)
 {
 	pr_info("%s\n", __func__);
@@ -400,8 +421,7 @@ static int barcode_fpga_fimrware_update_start(const u8 *data, int len)
 void ice4_fpga_firmware_update_hlte(void)
 {
 #if defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_HLTELGT)\
-	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)\
-	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3G_CHN_CMCC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
+	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
 	barcode_gpio_reconfig();
 #endif
 	if (g_pdata->fw_type == ICE_I2C_2) {
@@ -419,8 +439,7 @@ void ice4_fpga_firmware_update_hlte(void)
 
 	//verification with dummy gpio
 #if defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_HLTELGT)\
-	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)\
-	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3G_CHN_CMCC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
+	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
 	gpio_tlmm_config(GPIO_CFG(g_pdata->spi_si, 0,
 		GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	gpio_tlmm_config(GPIO_CFG(g_pdata->spi_clk, 0,

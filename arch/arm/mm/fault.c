@@ -352,23 +352,14 @@ int tima_debug_page_protection(unsigned long va, unsigned long caller, unsigned 
  * Check if a certain va is made read-only by tima
  * return: -1 error, 0 writable, 1 readonly
  */
+extern unsigned long tima_switch_count;
 int tima_is_pg_protected(unsigned long va)
 {
 	unsigned long  par;
 	unsigned long flags;
-	/* Translate the page use read priv.
-	Failing implies a translation fault*/
-	raw_spin_lock_irqsave(&par_lock, flags);
-	__asm__ __volatile__ (
-		"mcr	p15, 0, %1, c7, c8, 0\n"
-		"dsb\n"
-		"isb\n"
-		"mrc 	p15, 0, %0, c7, c4, 0\n"
-		:"=r"(par):"r"(va));
-	raw_spin_unlock_irqrestore(&par_lock, flags);
-	if (par & 0x1) {
-		return -1;
-	}
+
+	if (tima_switch_count < 0x12000) 
+		return 0;
 
 	/* Translate the page use writable priv.
 	Failing means a read-only page 
@@ -402,22 +393,14 @@ __do_kernel_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	if (fixup_exception(regs))
 		return;
 #ifdef	CONFIG_TIMA_RKP
-	printk(KERN_ERR"====> %lx\n", addr);
+	printk(KERN_ERR"TIMA:====> %lx\n", addr);
 	if (addr >= 0xc0000000 && (fsr & FSR_WRITE)) {
-		printk(KERN_ERR"==> Handling fault for %lx\n", addr);
-		__asm__("mcr     p15, 0, %0, c7, c14, 1\n"
-		    "isb"
-			::"r"(addr));
-		//tima_send_cmd(addr, 0x3f80e221);
+		printk(KERN_ERR"TIMA:==> Handling fault for %lx\n", addr);
 		tima_send_cmd(addr, 0x3f821221);
-		__asm__ ("mcr     p15, 0, %0, c7, c6,  1\n"
-		     "isb"
-		     ::"r"(addr));
 		__asm__ ("mcr    p15, 0, %0, c8, c3, 0\n"
 			"isb"
 			::"r"(0));
-		//tima_dump_log2();
-		return; 
+		return;
 	}
 #endif
 

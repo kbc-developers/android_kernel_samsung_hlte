@@ -1580,24 +1580,30 @@ static ssize_t felica_cen_read(struct file *file, char __user *buf, \
 	int ret;
 	unsigned char address = gi2c_lockaddress;
 	unsigned char read_buff = 0;
+	struct i2c_msg read_msgs[2];
 
-	gread_msgs[0].addr = gi2c_address;
-	gread_msgs[0].buf = &address;
-	gread_msgs[1].addr = gi2c_address;
-	gread_msgs[1].buf = &read_buff;
+	read_msgs[0].flags = gread_msgs[0].flags;
+	read_msgs[0].len = gread_msgs[0].len;
+	read_msgs[1].flags = gread_msgs[1].flags;
+	read_msgs[1].len = gread_msgs[1].len;
+
+	read_msgs[0].addr = gi2c_address;
+	read_msgs[0].buf = &address;
+	read_msgs[1].addr = gi2c_address;
+	read_msgs[1].buf = &read_buff;
 
 	if (felica_i2c_client == NULL) {
 		FELICA_LOG_ERR("[MFDD] felica_i2c_client is NULL %s -EIO",__func__);
 		return -EIO;
 	}
 
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[0], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[1], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
@@ -2598,11 +2604,17 @@ static ssize_t felica_ant_read(struct file *file, char __user *buf, \
 	int ret;
 	unsigned char address = gi2c_antaddress;
 	unsigned char read_buff = 0;
+	struct i2c_msg read_msgs[2];
 
-	gread_msgs[0].addr = gi2c_address;
-	gread_msgs[0].buf = &address;
-	gread_msgs[1].addr = gi2c_address;
-	gread_msgs[1].buf = &read_buff;
+	read_msgs[0].flags = gread_msgs[0].flags;
+	read_msgs[0].len = gread_msgs[0].len;
+	read_msgs[1].flags = gread_msgs[1].flags;
+	read_msgs[1].len = gread_msgs[1].len;
+
+	read_msgs[0].addr = gi2c_address;
+	read_msgs[0].buf = &address;
+	read_msgs[1].addr = gi2c_address;
+	read_msgs[1].buf = &read_buff;
 
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 	if (felica_i2c_client == NULL) {
@@ -2611,13 +2623,13 @@ static ssize_t felica_ant_read(struct file *file, char __user *buf, \
 		return -EIO;
 	}
 
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[0], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[1], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
@@ -4938,11 +4950,17 @@ static ssize_t snfc_cen_sts_init(void)
 	int ret;
 	unsigned char address = gi2c_lockaddress;
 	unsigned char read_buff = 0;
+	struct i2c_msg read_msgs[2];
 
-	gread_msgs[0].addr = gi2c_address;
-	gread_msgs[0].buf = &address;
-	gread_msgs[1].addr = gi2c_address;
-	gread_msgs[1].buf = &read_buff;
+	read_msgs[0].flags = gread_msgs[0].flags;
+	read_msgs[0].len = gread_msgs[0].len;
+	read_msgs[1].flags = gread_msgs[1].flags;
+	read_msgs[1].len = gread_msgs[1].len;
+
+	read_msgs[0].addr = gi2c_address;
+	read_msgs[0].buf = &address;
+	read_msgs[1].addr = gi2c_address;
+	read_msgs[1].buf = &read_buff;
 
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 	if (felica_i2c_client == NULL) {
@@ -4959,13 +4977,13 @@ static ssize_t snfc_cen_sts_init(void)
 	}	
 	#endif
 	
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[0], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[1], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);

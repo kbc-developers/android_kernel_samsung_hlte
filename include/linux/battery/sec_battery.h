@@ -136,6 +136,7 @@ struct sec_battery_info {
 	int siop_level;
 #if defined(CONFIG_SAMSUNG_BATTERY_ENG_TEST)
 	int stability_test;
+	int eng_not_full_status;
 #endif
 };
 

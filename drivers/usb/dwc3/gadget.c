@@ -74,7 +74,7 @@ schedule_work(&udc->reconnect_work);
 	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)
 extern int system_rev;
 #endif 
-static bool tx_fifo_resize_enable;
+static bool tx_fifo_resize_enable = true;
 module_param(tx_fifo_resize_enable, bool, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(tx_fifo_resize_enable,
 			"Enable allocating Tx fifo for endpoints");
@@ -203,6 +203,12 @@ int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 
 	if (!dwc->needs_fifo_resize && !tx_fifo_resize_enable)
 		return 0;
+
+	if (dwc->gadget.speed != USB_SPEED_SUPER) {
+		pr_info("usb:: %s off\n", __func__);
+		return 0;
+	}
+	pr_info("usb:: %s on\n", __func__);
 
 	ram1_depth = DWC3_RAM1_DEPTH(dwc->hwparams.hwparams7);
 	mdwidth = DWC3_MDWIDTH(dwc->hwparams.hwparams0);
@@ -1635,6 +1641,10 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 
 	spin_lock_irqsave(&dwc->lock, flags);
 
+#ifdef CONFIG_SEC_H_PROJECT
+        if (!is_active)
+                dwc->ss_host_avail = -1;
+#endif
 	if (dwc->vbus_active == is_active) {
 		printk(KERN_ERR "dwc3 state is same\n");
 		spin_unlock_irqrestore(&dwc->lock, flags);
@@ -2617,8 +2627,8 @@ static void dwc3_gadget_conndone_interrupt(struct dwc3 *dwc)
 		We then change the speed_limit to USB_HIGH_SPEED and schedule 
 		a work item to reconnect at HIGH SPEED.
 		In factory mode we do not need this logic. we should always connect USB3.0
-	*/	
-#ifndef CONFIG_SEC_FACTORY	
+	*/
+#ifndef CONFIG_SEC_FACTORY
 		if (dwc->ss_host_avail == -1) {
 			if (dwc->gadget.speed == USB_SPEED_SUPER) {
 				dwc->ss_host_avail = 1;
@@ -2933,7 +2943,12 @@ int __devinit dwc3_gadget_init(struct dwc3 *dwc)
 	dev_set_name(&dwc->gadget.dev, "gadget");
 
 	dwc->gadget.ops			= &dwc3_gadget_ops;
-	dwc->gadget.max_speed		= USB_SPEED_SUPER;
+#if defined(CONFIG_MACH_JS01LTEDCM)
+		dwc->gadget.max_speed		= USB_SPEED_HIGH;
+#else
+		dwc->gadget.max_speed		= USB_SPEED_SUPER;
+#endif
+
 	dwc->gadget.speed		= USB_SPEED_UNKNOWN;
 	dwc->gadget.dev.parent		= dwc->dev;
 	dwc->gadget.sg_supported	= true;

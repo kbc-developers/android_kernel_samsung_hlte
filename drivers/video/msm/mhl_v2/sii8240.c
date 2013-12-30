@@ -1714,6 +1714,9 @@ static int sii8240_init_regs(struct sii8240_data *sii8240)
 	struct i2c_client *cbus = sii8240->pdata->cbus_client;
 
 	pr_info("sii8240_init_regs\n");
+	memset(sii8240->regs.peer_devcap, 0x0,
+			sizeof(sii8240->regs.peer_devcap));
+
 	ret = mhl_modify_reg(disc, INT_CTRL_REG, 0x06, 0x00);
 	if (unlikely(ret < 0)) {
 		pr_err("[ERROR] sii8240: %s():%d failed !\n", __func__, __LINE__);
@@ -2370,7 +2373,7 @@ static void sii8240_setup_charging(struct sii8240_data *sii8240)
 	u16 adopter_id;
 	u8 *peer_devcap = sii8240->regs.peer_devcap;
 
-	if (peer_devcap[MHL_DEVCAP_MHL_VERSION] == 0x20) {
+	if ((peer_devcap[MHL_DEVCAP_MHL_VERSION] & 0xF0) == 0x20) {
 		dev_cat = peer_devcap[MHL_DEVCAP_DEV_CAT];
 		pr_info("sii8240: DEV_CAT 0x%x\n", dev_cat);
 		if (((dev_cat >> 4) & 0x1) == 1) {
@@ -2379,7 +2382,7 @@ static void sii8240_setup_charging(struct sii8240_data *sii8240)
 			if (sii8240->pdata->vbus_present)
 				sii8240->pdata->vbus_present(false, plim);
 		}
-	} else {
+	} else if ((peer_devcap[MHL_DEVCAP_MHL_VERSION] & 0xF0) == 0x10) {
 		adopter_id = peer_devcap[MHL_DEVCAP_ADOPTER_ID_L] |
 				peer_devcap[MHL_DEVCAP_ADOPTER_ID_H] << 8;
 		pr_info("sii8240: adopter id:%d, reserved:%d\n",
@@ -2389,6 +2392,9 @@ static void sii8240_setup_charging(struct sii8240_data *sii8240)
 			if (sii8240->pdata->vbus_present)
 				sii8240->pdata->vbus_present(false, 0x01);
 		}
+	} else {
+		pr_err("sii8240:%s MHL version error - 0x%X\n", __func__,
+				peer_devcap[MHL_DEVCAP_MHL_VERSION]);
 	}
 }
 
@@ -3132,16 +3138,26 @@ static void sii8240_avi_control_thread(struct work_struct *work)
 	switch (sii8240->avi_cmd) {
 	case HPD_HIGH_EVENT:
 		pr_info("***HPD high\n");
-		/*reading devcap, but we can move this function
-		  any other first settup*/
-		memset(sii8240->regs.peer_devcap, 0x0,
-				sizeof(sii8240->regs.peer_devcap));
-
 		/*We will read minimum devcap information*/
 		sii8240_queue_devcap_read_locked(sii8240,
 					MHL_DEVCAP_MHL_VERSION);
 		sii8240_queue_devcap_read_locked(sii8240,
 					MHL_DEVCAP_VID_LINK_MODE);
+		if (sii8240->cbus_ready) {
+			pr_info("sii8240: DCAP_READY and read devcap\n");
+			if (sii8240_queue_cbus_cmd_locked(sii8240, READ_DEVCAP,
+						MHL_DEVCAP_RESERVED, 0) < 0)
+				pr_info("sii8240: MHL_RESERVED read fail\n");
+			if (sii8240_queue_cbus_cmd_locked(sii8240, READ_DEVCAP,
+						MHL_DEVCAP_ADOPTER_ID_H, 0) < 0)
+				pr_info("sii8240: ADOPTER_ID_H read fail\n");
+			if (sii8240_queue_cbus_cmd_locked(sii8240, READ_DEVCAP,
+						MHL_DEVCAP_ADOPTER_ID_L, 0) < 0)
+				pr_info("sii8240: ADOPTER_ID_L read fail\n");
+			if (sii8240_queue_cbus_cmd_locked(sii8240, READ_DEVCAP,
+						MHL_DEVCAP_DEV_CAT, 0) < 0)
+				pr_info("sii8240: DEVCAP_DEV_CAT read fail\n");
+		}
 
 		if(!sii8240->hpd_status) {
 			pr_err("[ERROR] sii8240: hpd_status false\n");
@@ -3348,6 +3364,7 @@ static void sii8240_detection_restart(struct work_struct *work)
 	sii8240->state = STATE_DISCONNECTED;
 	sii8240->rgnd = RGND_UNKNOWN;
 	sii8240->ap_hdcp_success = false;
+	sii8240->cbus_ready = 0;
 
 	mhl_hpd_control_low(sii8240);
 
@@ -3409,6 +3426,7 @@ static int sii8240_detection_callback(struct notifier_block *this,
 		wake_lock(&sii8240->mhl_wake_lock);
 		sii8240->mhl_connected = true;
 		sii8240->muic_state = MHL_ATTACHED;
+		sii8240->cbus_ready = 0;
 	} else {
 		pr_info("sii8240:disconnection\n");
 		mhl_hpd_handler(false);
@@ -3634,6 +3652,7 @@ static int sii8240_msc_irq_handler(struct sii8240_data *sii8240, u8 intr)
 				sii8240->hpd_status = false;
 				sii8240->tmds_enable = false;
 				sii8240->ap_hdcp_success = false;
+				sii8240->cbus_ready = 0;
 				ret = mhl_modify_reg(tmds, UPSTRM_HPD_CTRL_REG,
 					BIT_HPD_CTRL_HPD_OUT_OVR_VAL_MASK|
 					BIT_HPD_CTRL_HPD_OUT_OVR_EN_MASK,
@@ -3689,6 +3708,9 @@ static int sii8240_msc_irq_handler(struct sii8240_data *sii8240, u8 intr)
 		pr_info("sii8240: WRITE_STAT received\n");
 
 		sii8240->cbus_ready = cbus_status[0] & MHL_STATUS_DCAP_READY;
+		if (sii8240->cbus_ready)
+			pr_info("sii8240: DCAP_READY intr\n");
+
 		if (!(sii8240->regs.link_mode & MHL_STATUS_PATH_ENABLED) &&
 			(MHL_STATUS_PATH_ENABLED & cbus_status[1])) {
 

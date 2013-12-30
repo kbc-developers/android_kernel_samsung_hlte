@@ -2184,7 +2184,7 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 		return -EINVAL;
 	}
 
-	power_supply_changed(&mdwc->usb_psy);
+//	power_supply_changed(&mdwc->usb_psy);
 	return 0;
 }
 
@@ -2211,7 +2211,7 @@ static void dwc3_msm_external_power_changed(struct power_supply *psy)
 	}
 
 	power_supply_set_online(&mdwc->usb_psy, ret.intval);
-	power_supply_changed(&mdwc->usb_psy);
+//	power_supply_changed(&mdwc->usb_psy);
 }
 
 

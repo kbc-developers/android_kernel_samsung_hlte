@@ -52,6 +52,7 @@
 #endif
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_FULL_HD_PT_PANEL)
 #define LDI_FPS_CHANGE
+#define LDI_ADJ_VDDM_OFFSET
 #endif
 #if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT)\
 	|| defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)\
@@ -87,6 +88,10 @@ static struct dsi_cmd ldi_debug_cmds;
 #ifdef LDI_FPS_CHANGE
 static struct dsi_cmd read_ldi_fps_cmds;
 static struct dsi_cmd write_ldi_fps_cmds;
+#endif
+#ifdef LDI_ADJ_VDDM_OFFSET
+static struct dsi_cmd read_vddm_ref_cmds;
+static struct dsi_cmd write_vddm_offset_cmds;
 #endif
 static struct dsi_cmd manufacture_id_cmds;
 static struct dsi_cmd display_qcom_on_cmds;
@@ -172,6 +177,23 @@ static struct dsi_cmd_desc brightness_packet[] = {
 	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, 0}, NULL},
 	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, 0}, NULL},
 };
+#ifdef LDI_ADJ_VDDM_OFFSET
+unsigned int ldi_vddm_lut[128][2] = {
+	{0, 13}, {1, 13}, {2, 14}, {3, 15}, {4, 16}, {5, 17}, {6, 18}, {7, 19}, {8, 20}, {9, 21},
+	{10, 22}, {11, 23}, {12, 24}, {13, 25}, {14, 26}, {15, 27}, {16, 28}, {17, 29}, {18, 30}, {19, 31},
+	{20, 32}, {21, 33}, {22, 34}, {23, 35}, {24, 36}, {25, 37}, {26, 38}, {27, 39}, {28, 40}, {29, 41},
+	{30, 42}, {31, 43}, {32, 44}, {33, 45}, {34, 46}, {35, 47}, {36, 48}, {37, 49}, {38, 50}, {39, 51},
+	{40, 52}, {41, 53}, {42, 54}, {43, 55}, {44, 56}, {45, 57}, {46, 58}, {47, 59}, {48, 60}, {49, 61},
+	{50, 62}, {51, 63}, {52, 63}, {53, 63}, {54, 63}, {55, 63}, {56, 63}, {57, 63}, {58, 63}, {59, 63},
+	{60, 63}, {61, 63}, {62, 63}, {63, 63}, {64, 12}, {65, 11}, {66, 10}, {67, 9}, {68, 8}, {69, 7},
+	{70, 6}, {71, 5}, {72, 4}, {73, 3}, {74, 2}, {75, 1}, {76, 64}, {77, 65}, {78, 66}, {79, 67},
+	{80, 68}, {81, 69}, {82, 70}, {83, 71}, {84, 72}, {85, 73}, {86, 74}, {87, 75}, {88, 76}, {89, 77},
+	{90, 78}, {91, 79}, {92, 80}, {93, 81}, {94, 82}, {95, 83}, {96, 84}, {97, 85}, {98, 86}, {99, 87},
+	{100, 88}, {101, 89}, {102, 90}, {103, 91}, {104, 92}, {105, 93}, {106, 94}, {107, 95}, {108, 96}, {109, 97},
+	{110, 98}, {111, 99}, {112, 100}, {113, 101}, {114, 102}, {115, 103}, {116, 104}, {117, 105}, {118, 106}, {119, 107},
+	{120, 108}, {121, 109}, {122, 110}, {123, 111}, {124, 112}, {125, 113}, {126, 114}, {127, 115},
+};
+#endif
 
 #define MAX_BR_PACKET_SIZE sizeof(brightness_packet)/sizeof(struct dsi_cmd_desc)
 
@@ -1753,6 +1775,9 @@ static int mipi_samsung_disp_send_cmd(
 				flag = CMD_REQ_SINGLE_TX;
 			else
 				flag = 0;
+			
+			if(msd.dstat.bright_level)
+				msd.dstat.recent_bright_level = msd.dstat.bright_level;
 #if defined(HBM_RE)
 			if(msd.dstat.auto_brightness == 6) {
 				cmd_size = make_brightcontrol_hbm_set(msd.dstat.bright_level);
@@ -1811,7 +1836,12 @@ static int mipi_samsung_disp_send_cmd(
 			cmd_size = write_ldi_fps_cmds.num_of_cmds;
 			break;
 #endif
-
+#ifdef LDI_ADJ_VDDM_OFFSET
+		case PANEL_LDI_SET_VDDM_OFFSET:
+			cmd_desc = write_vddm_offset_cmds.cmd_desc;
+			cmd_size = write_vddm_offset_cmds.num_of_cmds;
+			break;
+#endif
 #if defined(PARTIAL_UPDATE)
 		case PANEL_PARTIAL_ON:
 			cmd_desc = partialdisp_on_cmd.cmd_desc;
@@ -1925,6 +1955,10 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 #ifdef LDI_FPS_CHANGE
 	char ldi_fps_buffer;
 #endif
+#ifdef LDI_ADJ_VDDM_OFFSET
+	unsigned int vddm_offset;
+	char vol_ref_buffer;
+#endif
 
 	if (get_lcd_attached() == 0)
 	{
@@ -1971,6 +2005,12 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 		} else
 			pr_err("%s:LDI EVT0 Not Support\n",__func__);
 
+#endif
+#ifdef LDI_ADJ_VDDM_OFFSET
+		mipi_samsung_read_nv_mem(msd.pdata, &read_vddm_ref_cmds, &vol_ref_buffer);
+		vddm_offset=(unsigned int)(vol_ref_buffer & 0x7F);
+		pr_info("%s:vddm_offset = %d , ldi_vddm_lut[%d][1] = %d \n", __func__, vddm_offset, vddm_offset, ldi_vddm_lut[vddm_offset][1]);
+		write_vddm_offset_cmds.cmd_desc[3].payload[1] = ldi_vddm_lut[vddm_offset][1];
 #endif
 
 		/* Initialize smart dimming related	things here */
@@ -2074,14 +2114,8 @@ struct mdss_panel_data *mdss_dsi_switching = NULL;
 int IsSwitching = 0;
 extern int dsi_clk_on;
 #endif
-
-#if defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
-static bool isBootingTime = true;
-static void panel_work_func (struct work_struct *unused)
-{
-	is_negative_on();
-	return;
-}
+#if defined(CONFIG_MDNIE_LITE_TUNING)
+static bool dsi_first_init = true;
 #endif
 
 static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
@@ -2156,23 +2190,22 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	msd.dstat.on = 1;
 	msd.dstat.wait_disp_on = 1;
 	msd.mfd->resume_state = MIPI_RESUME_STATE;
+#ifdef LDI_ADJ_VDDM_OFFSET
+	mipi_samsung_disp_send_cmd(PANEL_LDI_SET_VDDM_OFFSET, true);
+#endif
 
 #if defined(CONFIG_MDNIE_LITE_TUNING)
-#if defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
-	if (isBootingTime) {
-		INIT_DELAYED_WORK(&ctrl->work, panel_work_func);
-#if defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
-		schedule_delayed_work(&ctrl->work, 100);
-#else
-		schedule_delayed_work(&ctrl->work, 80);
-#endif
-		isBootingTime = false;
-	} else is_negative_on();
-#else
-	is_negative_on();
-#endif
+	if (!dsi_first_init) 
+		is_negative_on();
+	else 
+		dsi_first_init = false;
 #endif
 
+	if(msd.dstat.recent_bright_level)
+	{
+		msd.dstat.bright_level = msd.dstat.recent_bright_level;
+		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
+	}
 #if defined(PARTIAL_UPDATE)
 	if (partial_disp_range[0] || partial_disp_range[1])
 		mipi_samsung_disp_send_cmd(PANEL_PARTIAL_ON, true);
@@ -2884,6 +2917,12 @@ static int mdss_panel_parse_dt(struct platform_device *pdev,
 	mdss_samsung_parse_panel_cmd(pdev, &write_ldi_fps_cmds,
 				"samsung,panel-ldi-fps-write-cmds");
 #endif
+#ifdef LDI_ADJ_VDDM_OFFSET
+	mdss_samsung_parse_panel_cmd(pdev, &read_vddm_ref_cmds,
+				"samsung,panel-ldi-vddm-read-cmds");
+	mdss_samsung_parse_panel_cmd(pdev, &write_vddm_offset_cmds,
+				"samsung,panel-ldi-vddm-offset-write-cmds");
+#endif
 	mdss_samsung_parse_panel_cmd(pdev, &display_on_cmd,
 				"qcom,panel-display-on-cmds");
 	mdss_samsung_parse_panel_cmd(pdev, &display_off_cmd,
@@ -3154,21 +3193,6 @@ static void load_tuning_file(char *filename)
 	kfree(dp);
 }
 
-static int samsung_dsi_panel_event_handler(int event)
-{
-	pr_debug("SS DSI Event Handler");
-	switch (event) {
-		case MDSS_EVENT_FRAME_UPDATE:
-			if(msd.dstat.wait_disp_on) {
-				mipi_samsung_disp_send_cmd(PANEL_DISPLAY_ON, true);
-				msd.dstat.wait_disp_on = 0;
-			}
-		break;
-	}
-
-	return 0;
-}
-
 static ssize_t tuning_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
@@ -3204,6 +3228,33 @@ static ssize_t tuning_store(struct device *dev,
 	return size;
 }
 
+
+
+static DEVICE_ATTR(tuning, 0664, tuning_show, tuning_store);
+#endif
+static int samsung_dsi_panel_event_handler(int event)
+{
+	pr_debug("SS DSI Event Handler");
+	switch (event) {
+		case MDSS_EVENT_FRAME_UPDATE:
+			if(msd.dstat.wait_disp_on) {
+				mipi_samsung_disp_send_cmd(PANEL_DISPLAY_ON, true);
+				msd.dstat.wait_disp_on = 0;
+			}
+			break;
+#if defined(CONFIG_MDNIE_LITE_TUNING)
+		case MDSS_EVENT_MDNIE_DEFAULT_UPDATE:
+			is_negative_on();
+			break;
+#endif
+		default:
+			pr_err("%s : unknown event \n", __func__);
+			break;
+
+	}
+
+	return 0;
+}
 static int mdss_dsi_panel_blank(struct mdss_panel_data *pdata, int blank)
 {
 	if(blank) {
@@ -3216,9 +3267,6 @@ static int mdss_dsi_panel_blank(struct mdss_panel_data *pdata, int blank)
 	}
 	return 0;
 }
-
-static DEVICE_ATTR(tuning, 0664, tuning_show, tuning_store);
-#endif
 
 #if defined(CONFIG_LCD_CLASS_DEVICE)
 static struct attribute *panel_sysfs_attributes[] = {

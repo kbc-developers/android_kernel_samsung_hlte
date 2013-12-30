@@ -966,7 +966,7 @@ int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
         unsigned long tima_l2group_flag = 0;
         tima_l2group_entry_t *tima_l2group_buffer = NULL;
-        unsigned long tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
+        unsigned long tima_l2group_numb_entries;
         unsigned long tima_l2group_buffer_index = 0;
 #endif
 
@@ -983,6 +983,11 @@ again:
 	orig_dst_pte = dst_pte;
 	arch_enter_lazy_mmu_mode();
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
+	/* Initialize all L2_GROUP variables */
+	tima_l2group_flag= 0;
+	tima_l2group_buffer = NULL;
+	tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
+	tima_l2group_buffer_index = 0;
         /*
          * Lazy mmu mode for tima:
          * 1-Define a memory area to hold the PTEs to be changed
@@ -1062,7 +1067,7 @@ again:
 		 */
 		if (tima_l2group_buffer_index) {
 			timal2group_set_pte_commit(tima_l2group_buffer,
-						tima_l2group_buffer_index);
+						tima_l2group_buffer_index, (void*)src_pte);
 		}
 		free_pages((unsigned long) tima_l2group_buffer, 1);
 	}

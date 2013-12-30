@@ -747,8 +747,8 @@ static struct battery_data_t samsung_battery_data[] = {
 		.temp_cohot = -1025,
 		.temp_cocold = -3675,
 #elif defined(CONFIG_MACH_JS01LTEDCM)
-		.RCOMP0 = 0x70,
-		.RCOMP_charging = 0x7F,
+		.RCOMP0 = 0x75,
+		.RCOMP_charging = 0x80,
 		.temp_cohot = -700,
 		.temp_cocold = -4875,
 #elif defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR)
@@ -780,6 +780,11 @@ static struct battery_data_t samsung_battery_data[] = {
 #elif defined(CONFIG_MACH_H3GDUOS_CU)
 		.RCOMP0 = 0x75,
 		.RCOMP_charging = 0x8D,
+		.temp_cohot = -1000,
+		.temp_cocold = -4350,
+#elif defined(CONFIG_MACH_HLTEEUR)
+		.RCOMP0 = 0x62,
+		.RCOMP_charging = 0x7C,
 		.temp_cohot = -1000,
 		.temp_cocold = -4350,
 #else
@@ -910,7 +915,7 @@ sec_battery_platform_data_t sec_battery_pdata = {
 
 	.temp_check_type = SEC_BATTERY_TEMP_CHECK_TEMP,
 	.temp_check_count = 1,
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT) || defined(CONFIG_MACH_JS01LTEDCM)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)
 	.temp_high_threshold_event = 670,
 	.temp_high_recovery_event = 420,
 	.temp_low_threshold_event = -45,
@@ -1109,6 +1114,21 @@ sec_battery_platform_data_t sec_battery_pdata = {
 	.temp_high_recovery_lpm = 400,
 	.temp_low_threshold_lpm = -45,
 	.temp_low_recovery_lpm = 0,
+#elif defined(CONFIG_MACH_JS01LTEDCM)
+	.temp_high_threshold_event = 600,
+	.temp_high_recovery_event = 400,
+	.temp_low_threshold_event = -50,
+	.temp_low_recovery_event = 0,
+
+	.temp_high_threshold_normal = 600,
+	.temp_high_recovery_normal = 400,
+	.temp_low_threshold_normal = -50,
+	.temp_low_recovery_normal = 0,
+
+	.temp_high_threshold_lpm = 600,
+	.temp_high_recovery_lpm = 400,
+	.temp_low_threshold_lpm = -50,
+	.temp_low_recovery_lpm = 0,
 #else
 	.temp_high_threshold_event = 650,
 	.temp_high_recovery_event = 440,
@@ -1174,6 +1194,9 @@ sec_battery_platform_data_t sec_battery_pdata = {
 #elif defined(CONFIG_MACH_FLTEEUR) || defined(CONFIG_MACH_FLTESKT)
 	.capacity_max = 990,
 	.capacity_min = 0,
+#elif defined(CONFIG_MACH_JS01LTEDCM)
+	.capacity_max = 1030,
+	.capacity_min = -7,
 #else
 	.capacity_max = 990,
 	.capacity_min = -7,

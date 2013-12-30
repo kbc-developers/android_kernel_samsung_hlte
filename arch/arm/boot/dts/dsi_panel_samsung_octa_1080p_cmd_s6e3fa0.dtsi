@@ -143,6 +143,17 @@
 
 			samsung,panel-ldi-fps-read-cmds = [
 								06 01 00 00 00 00 01 D7 01 1A]; /* read D7 27th , 27=0x1B*/
+
+			samsung,panel-ldi-vddm-read-cmds	= [
+								06 01 00 00 00 00 01 D7 01 16];
+			samsung,panel-ldi-vddm-offset-write-cmds = [
+								29 01 00 00 00 00 03 F0 5A 5A
+								29 01 00 00 00 00 03 FC 5A 5A
+								29 01 00 00 00 00 02 B0 16 
+								29 01 00 00 00 00 02 D7 00
+								29 01 00 00 00 00 03 F0 A5 A5
+								29 01 00 00 00 00 03 FC A5 A5 ];
+
 			samsung,panel-ldi-partial-disp-on = [	29 01 00 00 00 00 05 30 02 83 04 FF
 								29 01 00 00 00 00 02 12 00 ];
 			samsung,panel-ldi-partial-disp-off = [29 01 00 00 00 00 02 13 00];

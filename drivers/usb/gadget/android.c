@@ -2814,7 +2814,7 @@ usb30en_store (struct device *pdev, struct device_attribute *attr,const char *bu
 			if (!usb30en)
 				usb_gadget_connect_work(dev);
 			else
-			usb_gadget_connect(dev->cdev->gadget);
+				usb_gadget_connect(dev->cdev->gadget);
 			printk(KERN_DEBUG "usb: [%s:%d] after usb_gadget_connect\n",
 				__func__, __LINE__);
 			return size;
@@ -3026,7 +3026,12 @@ static struct usb_composite_driver android_usb_driver = {
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.unbind		= android_usb_unbind,
-	.max_speed	= USB_SPEED_SUPER
+#if defined(CONFIG_MACH_JS01LTEDCM)
+	.max_speed		= USB_SPEED_HIGH
+#else
+	.max_speed		= USB_SPEED_SUPER
+#endif
+
 };
 
 static int

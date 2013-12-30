@@ -378,8 +378,13 @@ static void max77803_haptic_power_onoff(int onoff)
 
 	if (!reg_l23) {
 		reg_l23 = regulator_get(NULL, "8941_l23");
-		ret = regulator_set_voltage(reg_l23, 3000000, 3000000);
-
+#if defined(CONFIG_MACH_FLTESKT)
+		ret = regulator_set_voltage(reg_l23, 3200000, 3200000);
+#elif defined(CONFIG_MACH_HLTEVZW)
+		ret = regulator_set_voltage(reg_l23, 3100000, 3100000);
+#else
+		ret = regulator_set_voltage(reg_l23, 2825000, 2825000);
+#endif
 		if (IS_ERR(reg_l23)) {
 			printk(KERN_ERR"could not get 8941_l23, rc = %ld\n",
 				PTR_ERR(reg_l23));

@@ -58,6 +58,7 @@ enum mipi_samsung_cmd_list {
 	PANEL_TEAR_ON,
 	PANEL_TEAR_OFF,
 	PANEL_LDI_FPS_CHANGE,
+	PANEL_LDI_SET_VDDM_OFFSET, /*LDI_ADJ_VDDM_OFFSET*/
 	PANEL_PARTIAL_ON,
 	PANEL_PARTIAL_OFF	
 };
@@ -92,6 +93,7 @@ struct display_status {
 	int curr_aid_idx;
 	int curr_gamma_idx;
 	int bright_level;
+	int	recent_bright_level;
 
 	int temperature;
 	char temperature_value;

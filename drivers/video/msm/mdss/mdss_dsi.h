@@ -421,9 +421,6 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
 	int dsi_err_cnt;
-#if defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
-	struct delayed_work work;
-#endif
 };
 
 #ifdef MDP_RECOVERY

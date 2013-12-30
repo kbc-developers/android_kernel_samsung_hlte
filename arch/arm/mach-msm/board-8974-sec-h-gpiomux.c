@@ -84,6 +84,13 @@ static struct gpiomux_setting gpio_uart_config = {
 	.dir = GPIOMUX_OUT_HIGH,
 };
 
+static struct gpiomux_setting gpio_uart_rx_config = {
+	.func = GPIOMUX_FUNC_2,
+	.drv = GPIOMUX_DRV_16MA,
+	.pull = GPIOMUX_PULL_DOWN,
+	.dir = GPIOMUX_OUT_HIGH,
+};
+
 static struct gpiomux_setting slimbus = {
 	.func = GPIOMUX_FUNC_1,
 	.drv = GPIOMUX_DRV_8MA,
@@ -240,6 +247,21 @@ static struct gpiomux_setting nfc_i2c_config = {
 };
 #endif
 
+#if defined(CONFIG_MACH_H3GDUOS)
+static struct gpiomux_setting lcd_en_act_cfg = {
+	.func = GPIOMUX_FUNC_2, //GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct gpiomux_setting lcd_en_sus_cfg = {
+	.func = GPIOMUX_FUNC_GPIO, 
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
+};
+
+#else
 static struct gpiomux_setting lcd_en_act_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_8MA,
@@ -251,6 +273,8 @@ static struct gpiomux_setting lcd_en_sus_cfg = {
 	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_DOWN,
 };
+
+#endif
 
 static struct gpiomux_setting ext_buck_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
@@ -979,7 +1003,7 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 	{
 		.gpio      = 5,			/* BLSP2 UART RX */
 		.settings = {
-			[GPIOMUX_SUSPENDED] = &gpio_uart_config,
+			[GPIOMUX_SUSPENDED] = &gpio_uart_rx_config,
 		},
 	},
 	{
@@ -1133,7 +1157,14 @@ static struct msm_gpiomux_config sd_card_det __initdata = {
 		[GPIOMUX_SUSPENDED] = &sd_card_det_sleep_config,
 	},
 };
-
+#ifdef CONFIG_MACH_H3GDUOS
+ static struct gpiomux_setting cam_mclk2_suspend_settings = {
+	.func = GPIOMUX_FUNC_GPIO, 
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
+};
+#endif
 static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 	{
 		.gpio = 15, /* CAM_MCLK0 */
@@ -1151,6 +1182,15 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 		},
 	},
 #endif
+#ifdef CONFIG_MACH_H3GDUOS
+	{
+		.gpio = 17, /* CAM_MCLK2 */
+		.settings = {
+			[GPIOMUX_ACTIVE]    = &cam_settings[0],
+			[GPIOMUX_SUSPENDED] = &cam_mclk2_suspend_settings,
+		},
+	},
+#else	
 	{
 		.gpio = 17, /* CAM_MCLK2 */
 		.settings = {
@@ -1158,6 +1198,7 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &cam_settings[1],
 		},
 	},
+#endif	
 	{
 		.gpio = 19, /* CCI_I2C_SDA0 */
 		.settings = {

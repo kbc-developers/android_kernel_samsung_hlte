@@ -76,7 +76,7 @@ int mmc_attach_sdio(struct mmc_host *host);
 extern bool use_spi_crc;
 #if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)\
 	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)\
-	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3G_CHN_CMCC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
+	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU)
 extern bool fw_dl_complete;
 #endif
 /* Debugfs information for hosts and cards */

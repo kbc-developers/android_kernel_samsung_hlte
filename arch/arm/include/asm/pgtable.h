@@ -249,10 +249,16 @@ static inline void timal2group_set_pte_at(pte_t *ptep, pte_t pteval,
 	}
 }
 static inline void timal2group_set_pte_commit(void *tima_l2group_entry_ptr,
-					unsigned long tima_l2group_entries_count)
+					unsigned long tima_l2group_entries_count,
+					void *ptet)
 {
+	/*Flush the cache of the ptep (starting from the base to 1 page (4KB))*/
+	//flush_kernel_vmap_range((void*)((unsigned long)ptet&PAGE_MASK), PAGE_SIZE);
 	cpu_v7_timal2group_set_pte_commit(tima_l2group_entry_ptr,
-					 tima_l2group_entries_count);
+					 tima_l2group_entries_count, (unsigned long)ptet&PAGE_MASK);
+	//if (!ptet) printk(KERN_ERR"TIMA -> %s %p- %lx\n",__func__,ptet, (unsigned long)ptet&PAGE_MASK);
+	/*Invalidate the cache so nothing got poisoned by speculative fetching.
+	 * Since ptables spin lock is taken here. NO data loss should happen*/
 }
 #endif /* CONFIG_TIMA_RKP_L2_GROUP */
 

@@ -3492,6 +3492,13 @@ config TIMA_RKP_L2_GROUP
 	help
 	 TIMA grouping page table writes
 
+config TIMA_RKP_LAZY_MMU
+	bool
+	depends on TIMA_RKP_L2_TABLES
+	default y
+	help
+	 TIMA lazy MMU for L2 pages
+
 config	TIMA_RKP_DMA_MVA_TO_SETWAY
 	bool
 	depends on TIMA_RKP

@@ -927,7 +927,7 @@ void usb_status_send_event(int val)
 		uevent_envp = cable_disconnected;
 
 	if (gInfo != NULL && gInfo->dev != NULL ) {
-	dev_info(gInfo->dev, "%s\n", __func__);
+		dev_info(gInfo->dev, "%s\n", __func__);
 		kobject_uevent_env(&gInfo->dev->kobj, KOBJ_CHANGE, uevent_envp);
 	}
 }
@@ -1219,7 +1219,7 @@ static int max77803_muic_attach_usb_type(struct max77803_muic_info *info,
 #if defined(CONFIG_SEC_H_PROJECT)
 			max77803_muic_usbdelay_attach_work(info);
 #else
-		mdata->usb_cb(USB_CABLE_ATTACHED);
+			mdata->usb_cb(USB_CABLE_ATTACHED);
 #endif
 	}
 
@@ -2847,7 +2847,9 @@ void max77803_muic_usb_connection_delay(struct work_struct *work)
 
 // Do usb connection
 	if (mdata->usb_cb) {
-		if ( info->cable_type == CABLE_TYPE_USB_MUIC || info->cable_type == CABLE_TYPE_SMARTDOCK_USB_MUIC)
+		if ( info->cable_type == CABLE_TYPE_USB_MUIC ||
+			info->cable_type == CABLE_TYPE_CDP_MUIC ||
+			info->cable_type == CABLE_TYPE_SMARTDOCK_USB_MUIC)
 			mdata->usb_cb(USB_CABLE_ATTACHED);
 	}
 }

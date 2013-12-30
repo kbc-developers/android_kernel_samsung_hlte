@@ -93,7 +93,7 @@
 /*-------------------------------------------------------------------------*/
 
 #define MTPG_BULK_BUFFER_SIZE	16384
-#define MTPG_BULK_BUFFER_SIZE_DEVICETOPC	65536  //2013.08.21. 1MB -> 64KB for order allocation failure issue in lowmemory zone
+#define MTPG_BULK_BUFFER_SIZE_DEVICETOPC	16384  //2013.09.10. 64KB -> 16KB for order allocation failure issue in lowmemory zone
 #define MTPG_INTR_BUFFER_SIZE	28
 
 /* number of rx and tx requests to allocate */

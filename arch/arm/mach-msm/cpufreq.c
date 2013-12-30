@@ -61,7 +61,11 @@ struct cpu_freq {
 static DEFINE_PER_CPU(struct cpu_freq, cpu_freq_info);
 
 #ifdef CONFIG_SEC_DVFS
+#if defined(CONFIG_MACH_JS01LTEDCM)
+static unsigned int upper_limit_freq = 1574400;
+#else
 static unsigned int upper_limit_freq = 2265600;
+#endif
 static unsigned int lower_limit_freq;
 static unsigned int cpuinfo_max_freq;
 static unsigned int cpuinfo_min_freq;

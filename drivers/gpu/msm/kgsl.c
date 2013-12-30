@@ -2748,7 +2748,7 @@ static const struct {
 } kgsl_ioctl_funcs[] = {
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DEVICE_GETPROPERTY,
 			kgsl_ioctl_device_getproperty,
-			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
+			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DEVICE_WAITTIMESTAMP,
 			kgsl_ioctl_device_waittimestamp,
 			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
@@ -2766,13 +2766,13 @@ static const struct {
 			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_CMDSTREAM_FREEMEMONTIMESTAMP,
 			kgsl_ioctl_cmdstream_freememontimestamp,
-			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
+			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_CMDSTREAM_FREEMEMONTIMESTAMP_CTXTID,
 			kgsl_ioctl_cmdstream_freememontimestamp_ctxtid,
-			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
+			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DRAWCTXT_CREATE,
 			kgsl_ioctl_drawctxt_create,
-			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
+			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_DRAWCTXT_DESTROY,
 			kgsl_ioctl_drawctxt_destroy,
 			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
@@ -2792,10 +2792,10 @@ static const struct {
 			kgsl_ioctl_cff_user_event, 0),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_TIMESTAMP_EVENT,
 			kgsl_ioctl_timestamp_event,
-			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
+			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_SETPROPERTY,
 			kgsl_ioctl_device_setproperty,
-			KGSL_IOCTL_LOCK | KGSL_IOCTL_WAKE),
+			KGSL_IOCTL_LOCK),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_GPUMEM_ALLOC_ID,
 			kgsl_ioctl_gpumem_alloc_id, 0),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_GPUMEM_FREE_ID,
@@ -3196,6 +3196,18 @@ static int kgsl_mmap(struct file *file, struct vm_area_struct *vma)
 
 	vma->vm_private_data = entry;
 
+#ifdef CONFIG_TIMA_RKP
+	if (vma->vm_end - vma->vm_start) {
+		/* iommu optimization- needs to be turned ON from
+		* the tz side.
+		*/
+		cpu_v7_tima_iommu_opt(vma->vm_start, vma->vm_end, (unsigned long)vma->vm_mm->pgd);
+		__asm__ __volatile__ (
+		"mcr    p15, 0, r0, c8, c3, 0\n"
+		"dsb\n"
+		"isb\n");
+	}
+#endif
 	/* Determine user-side caching policy */
 
 	cache = kgsl_memdesc_get_cachemode(&entry->memdesc);

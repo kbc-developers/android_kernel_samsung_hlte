@@ -144,7 +144,7 @@ static int sec_fg_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		break;
+		return -ENODATA;
 	default:
 		return -EINVAL;
 	}

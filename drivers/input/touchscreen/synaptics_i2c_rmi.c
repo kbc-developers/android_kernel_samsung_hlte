@@ -3946,6 +3946,14 @@ void synaptics_power_ctrl(struct synaptics_rmi4_data *rmi4_data, bool enable)
 		}
 	}
 
+#if defined(CONFIG_SEC_JS_PROJECT)
+	ret = gpio_direction_output(rmi4_data->pwrdata->vdd_io_1p8, enable);
+	if (ret) {
+		pr_err("[TKEY]%s: unable to set_direction for vdd_led [%d]\n",
+			 __func__, rmi4_data->pwrdata->vdd_io_1p8);
+	}
+#endif
+
 	if (enable) {
 		if (regulator_is_enabled(reg_l10))
 			pr_err(	"%s: L10(1.8V) is enabled\n", __func__);
@@ -3971,11 +3979,15 @@ void synaptics_power_ctrl(struct synaptics_rmi4_data *rmi4_data, bool enable)
 	}
 #endif
 	pr_err("[synaptics] %s   enable(%d)\n", __func__,enable);
+
+#if !defined(CONFIG_SEC_JS_PROJECT)
 	ret = gpio_direction_output(rmi4_data->pwrdata->vdd_io_1p8, enable);
 	if (ret) {
 		pr_err("[TKEY]%s: unable to set_direction for vdd_led [%d]\n",
 			 __func__, rmi4_data->pwrdata->vdd_io_1p8);
 	}
+#endif
+
 #if !defined(CONFIG_SEC_H_PROJECT) && !defined(CONFIG_SEC_JS_PROJECT)
 	msleep(30);
 #endif

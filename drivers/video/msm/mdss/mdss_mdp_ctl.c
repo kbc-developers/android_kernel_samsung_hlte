@@ -53,6 +53,10 @@ enum {
 void xlog(const char *name, u32 data0, u32 data1, u32 data2, u32 data3, u32 data4);
 #endif
 
+#if defined(CONFIG_MACH_JS01LTEDCM)
+#define SIZE_FULL_HD  1920*1088
+#endif
+
 static DEFINE_MUTEX(mdss_mdp_ctl_lock);
 
 static int mdss_mdp_mixer_free(struct mdss_mdp_mixer *mixer);
@@ -159,12 +163,7 @@ static int mdss_mdp_ctl_perf_commit(struct mdss_data_type *mdata, u32 flags)
 		if (!is_hdmi_using) {
 #if !(defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_FULL_HD_PT_PANEL) \
      || defined(CONFIG_FB_MSM_MIPI_SAMSUNG_YOUM_CMD_FULL_HD_PT_PANEL))
-#if defined(CONFIG_MACH_JS01LTEDCM)
-			bus_ib_quota = MDSS_MDP_BUS_FUDGE_FACTOR_IB(bus_ib_quota);
-			bus_ab_quota = bus_ib_quota;
-#else
 			__mdss_mdp_ctrl_perf_ovrd(mdata, &bus_ab_quota, &bus_ib_quota);
-#endif
 #endif
 		} else {
 			__mdss_mdp_ctrl_perf_ovrd(mdata, &bus_ab_quota, &bus_ib_quota);
@@ -231,10 +230,18 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	src_w = pipe->src.w >> pipe->horz_deci;
 
 	quota = fps * pipe->src.w * src_h;
-	if (pipe->src_fmt->chroma_sample == MDSS_MDP_CHROMA_420)
-		quota = (quota * 3) / 2;
-	else
+	if (pipe->src_fmt->chroma_sample == MDSS_MDP_CHROMA_420) {
+		/*
+		 * with decimation, chroma is not downsampled, this means we
+		 * need to allocate bw for extra lines that will be fetched
+		 */
+		if (pipe->vert_deci) // QC
+			quota *= 2; // QC
+		else // QC
+			quota = (quota * 3) / 2;
+	} else {
 		quota *= pipe->src_fmt->bpp;
+	}
 
 	rate = pipe->dst.w;
 
@@ -268,17 +275,34 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	perf->ab_quota = quota;
 	perf->mdp_clk_rate = rate;
 
-	// restricted UHD video clip needs more BW, temporaily
-	if ((pipe->src.w >= 3840 && pipe->src.h >= 2160) &&
-		(pipe->dst.w <= 1079 && pipe->dst.h <= 607) &&
-		(pipe->vert_deci == 1 && pipe->horz_deci == 1) &&
-		(pipe->flags & MDP_FLIP_LR) &&
-		(pipe->src_fmt->is_yuv) &&
-		(pipe->mixer->ctl->intf_type == MDSS_INTF_DSI)) {
-			pr_debug("*** Exceptional case : increasing AB/IB QUOTA!!\n");
-			perf->ib_quota = perf->ib_quota * 7;
-			perf->ab_quota = perf->ab_quota * 7;
+#if defined(CONFIG_MACH_JS01LTEDCM)
+	/* increase MDP clock for UHD playback */
+	if (pipe->img_width * pipe->img_height > SIZE_FULL_HD && pipe->src_fmt->is_yuv) {
+		struct mdss_mdp_ctl *ctl = pipe->mixer->ctl;
+		struct mdss_data_type *mdata = ctl->mdata;
+		u16 decied_height = 0;
+
+		pr_debug("[UHD case] want to increase MDP clock for UHD playback\n");
+		rate = mdata->max_mdp_clk_rate;
+
+		/* increase BUS for UHD playback */
+		if ((pipe->dst.w <= 1080 && pipe->dst.h <= 609) &&
+			(pipe->vert_deci >= 1 && pipe->horz_deci == 1)) {
+			perf->ib_quota = MDSS_MDP_BUS_FUDGE_FACTOR_IB(perf->ib_quota);
+			rate = mdata->max_mdp_clk_rate + 1;
+			pr_debug("[UHD case] want to increase BUS for UHD playback\n");
+		}
+
+		/* increase vert_deci for UHD case */
+		decied_height = pipe->src.h >> (pipe->vert_deci + 1);
+		if (decied_height >= pipe->dst.h) {
+			rate = mdata->max_mdp_clk_rate + 1;
+			pr_debug("[UHD case] want to increase vert_deci for UHD casea pipe->dst.h=%d, pipe->vert_deci=%d\n",
+					pipe->dst.h, pipe->vert_deci);
+		}
+		perf->mdp_clk_rate = rate;
 	}
+#endif
 
 	pr_debug("mixer=%d pnum=%d clk_rate=%u bus ab=%u ib=%u\n",
 		 mixer->num, pipe->num, rate, perf->ab_quota, perf->ib_quota);
@@ -295,9 +319,7 @@ static void mdss_mdp_perf_mixer_update(struct mdss_mdp_mixer *mixer,
 	u32 v_total;
 	int i;
 	u32 max_clk_rate = 0, ab_total = 0, ib_total = 0;
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 	int pipe_cnt = 0, backend_cnt = 0; // QCT_0822
-#endif
 
 	*bus_ab_quota = 0;
 	*bus_ib_quota = 0;
@@ -346,23 +368,19 @@ static void mdss_mdp_perf_mixer_update(struct mdss_mdp_mixer *mixer,
 		ib_total += perf.ib_quota >> MDSS_MDP_BUS_FACTOR_SHIFT;
 		if (perf.mdp_clk_rate > max_clk_rate)
 			max_clk_rate = perf.mdp_clk_rate;
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 		// QCT_0822 [
 		pipe_cnt++;
 		if (pipe->flags & MDP_BACKEND_COMPOSITION)
 			backend_cnt++;
 		// QCT_0822 ]
-#endif
 	}
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 	//QCT_0822 [
-	if (pipe_cnt == 1 && backend_cnt == 0) {
+	if ((pipe_cnt == 1 && backend_cnt == 0) || pipe_cnt == 4) {
 		pr_debug("GPU fall-back case, ab/ib will be increased to 10 percent \n");
 		ab_total = (ab_total*11)/10;
 		ib_total = (ib_total*11)/10;
 	}
 	//QCT_0822 ]
-#endif
 
 	*bus_ab_quota += ab_total;
 	*bus_ib_quota += ib_total;
