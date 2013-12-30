@@ -1,6 +1,6 @@
 #!/bin/bash
 
 export BUILD_TARGET=SAM
-. sc04e.config
+. sc01f.config
 
 time ./_build-bootimg.sh $1
