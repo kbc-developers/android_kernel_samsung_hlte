@@ -60,7 +60,9 @@
 #define P2P_FPGA_ALWAYS_ON		// FPGA clock always enable for jmodel.
 #endif
 
+#ifdef CONFIG_NFC_FELICA
 #define FELICA_UICC_FUNCTION	// If SWP is present, must be defined.
+#endif
 #define F_WAKE_LOCK				// If wake lock is needed, can be defined.
 
 
@@ -657,8 +659,9 @@ static ssize_t uicc_read(struct file *file, char __user *buf,\
 static long uicc_ioctl(struct file *file, unsigned int cmd, \
 						unsigned long arg);
 
+#endif /* CONFIG_NFC_FELICA */
 #define FELICA_GPIO_DRIVER_NAME "felica_gpio_table"
 
-#endif /* CONFIG_NFC_FELICA */
+
 
 #endif /* _FELICA_H */

@@ -878,7 +878,6 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 				felica_uid_init();
 #endif
 			}
-
 			gfa_connect_flag = 1;
 #ifdef FELICA_UICC_FUNCTION
 			init_flag = 1;
@@ -889,6 +888,7 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 				&& (gfa_pid == nlh->nlmsg_pid)) {
 			/* wake up */
 			gfa_wait_flag = 1;
+
 #ifdef FELICA_UICC_FUNCTION
 		} else if ((gfa_rcv_str[0] == FELICA_INIT_UICC_END)
 				&& (gfa_pid == nlh->nlmsg_pid)) {
@@ -919,6 +919,9 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 #endif
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
 }
+
+/**/
+
 static void felica_set_felica_info(void)
 {
 	FELICA_LOG_DEBUG("[MFDD] %s START ", __func__);
@@ -2780,6 +2783,7 @@ static int __devexit felica_gpio_remove(struct platform_device *pdev)
 	felica_int_poll_exit();
 	return 0;
 }
+#if 1	//def CONFIG_NFC_FELICA
 static struct platform_driver felica_of_driver = {
 	.remove = __devexit_p(felica_gpio_remove),
 	.driver = {
@@ -2788,7 +2792,7 @@ static struct platform_driver felica_of_driver = {
 		.of_match_table = felica_of_match,
 	},
 };
-
+#endif
 static int __init felica_gpio_probe(struct platform_device *pdev)
 {
 	felica_gpio_pdev = pdev;
@@ -2826,7 +2830,9 @@ static int __init felica_init(void)
 #endif
 	felica_nl_init();
 	felica_i2c_init();
+#ifdef CONFIG_NFC_FELICA
 	uicc_init();
+#endif
 	/* MFC UID registration */
 #ifndef CONFIG_ARCH_MSM8974
 	schedule_delayed_work(&pgint_irq->work, msecs_to_jiffies(10));
@@ -2870,7 +2876,9 @@ static void __exit felica_exit(void)
 	wake_lock_destroy(&felica_wake_1);
 	wake_lock_destroy(&felica_wake_2);
 #endif
+#ifdef CONFIG_NFC_FELICA
 	uicc_exit();
+#endif
 	felica_i2c_exit();
 	felica_nl_exit();
 	felica_deregister_device();
