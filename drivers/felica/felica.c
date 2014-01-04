@@ -1621,9 +1621,10 @@ static ssize_t felica_cen_read(struct file *file, char __user *buf, \
 
 #ifdef CONFIG_NFC_FELICA
 	g_cen_sts = read_buff;
+	FELICA_LOG_DEBUG("[MFDD] %s g_cen_sts=[%d]", __func__, g_cen_sts);
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s g_cen_sts=[%d]", __func__, g_cen_sts);
+	
 
 	ret = copy_to_user(buf, &read_buff, FELICA_CEN_DATA_LEN);
 	if (ret != 0) {
@@ -1694,9 +1695,8 @@ static ssize_t felica_cen_write(struct file *file, const char __user *data,
 			}
 		}
 	}
-
-#endif
 	FELICA_LOG_DEBUG("[MFDD] %s END, g_cen_sts =%d, g_rfs_sts = %d", __func__, g_cen_sts, g_rfs_sts);
+#endif
 	return FELICA_CEN_DATA_LEN;
 }
 
@@ -1785,8 +1785,8 @@ static int felica_rfs_open(struct inode *inode, struct file *file)
 		     __func__, uid, gmfc_uid, gdiag_uid);
 		return -EACCES;
 	}
-#endif
 	FELICA_LOG_DEBUG("[MFDD] %s END, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",  __func__, uid, gmfc_uid, gdiag_uid);
+#endif
 	return 0;
 }
 
