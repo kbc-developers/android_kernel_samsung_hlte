@@ -2342,7 +2342,7 @@ static unsigned int felica_int_poll_poll(struct file *file, poll_table *wait)
 	//FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
 	return mask;
 }
-#if 0
+#ifndef CONFIG_FELICA_NO_SECURE
 /******************************************************************************
  * /dev/felica_uid
  ******************************************************************************/
