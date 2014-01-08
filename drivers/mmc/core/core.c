@@ -3216,7 +3216,8 @@ void mmc_start_host(struct mmc_host *host)
 {
 	mmc_power_off(host);
 #if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)\
-	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
+	|| defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)\
+	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_H3GDUOS_CU) || defined(CONFIG_MACH_H3G_CHN_CMCC) || defined(CONFIG_MACH_H3G_CHN_OPEN)
 	if ((fw_dl_complete!=true) && (!strcmp(mmc_hostname(host),"mmc2"))){
 		pr_info("%s: %s: %d, Call mmc_rescan after 2sec\n",	mmc_hostname(host), __func__,fw_dl_complete);
 		mmc_detect_change(host, msecs_to_jiffies(2000));

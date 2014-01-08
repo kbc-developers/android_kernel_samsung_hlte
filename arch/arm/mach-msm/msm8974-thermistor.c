@@ -83,7 +83,7 @@ static struct sec_therm_adc_table temper_table_ap[] = {
 	{42149,		-300},
 };
 #elif defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || \
-	defined(CONFIG_MACH_HLTELGT)
+	defined(CONFIG_MACH_HLTELGT) || defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
 static struct sec_therm_adc_table temper_table_ap[] = {
 	{26729,	730},
 	{26784,	720},

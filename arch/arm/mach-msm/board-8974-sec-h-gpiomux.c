@@ -413,8 +413,10 @@ static struct msm_gpiomux_config gpio_nc_configs[] __initdata = {
 #if !defined(CONFIG_SENSORS_VFS61XX)	// from H.HW Rev08, fingerprint sensor removed.
 	GPIOMUX_SET_NC(23),
 	GPIOMUX_SET_NC(24),
+#if !defined(CONFIG_SENSORS_AD7146)
 	GPIOMUX_SET_NC(25),
 	GPIOMUX_SET_NC(26),
+#endif
 	GPIOMUX_SET_NC(64),
 	GPIOMUX_SET_NC(130),
 #endif
@@ -528,6 +530,28 @@ static struct msm_gpiomux_config gpio_nc_configs[] __initdata = {
 		},
 	},
 #endif
+#if defined(CONFIG_MACH_JS01LTEDCM)
+	GPIOMUX_SET_NC(12),
+	GPIOMUX_SET_NC(29),
+	GPIOMUX_SET_NC(30),
+	GPIOMUX_SET_NC(80),
+	GPIOMUX_SET_NC(103),
+	GPIOMUX_SET_NC(105),
+	GPIOMUX_SET_NC(106),
+	GPIOMUX_SET_NC(107),
+	GPIOMUX_SET_NC(112),
+	GPIOMUX_SET_NC(113),
+	GPIOMUX_SET_NC(114),
+	GPIOMUX_SET_NC(115),
+	GPIOMUX_SET_NC(118),
+	GPIOMUX_SET_NC(119),
+	GPIOMUX_SET_NC(122),
+	GPIOMUX_SET_NC(124),
+	GPIOMUX_SET_NC(125),
+	GPIOMUX_SET_NC(127),
+	GPIOMUX_SET_NC(135),
+	GPIOMUX_SET_NC(136),
+#endif
 #if defined(CONFIG_SEC_LOCALE_KOR)
 	GPIOMUX_SET_NC(103),
 #endif
@@ -576,6 +600,24 @@ static struct gpiomux_setting hsic_hub_act_cfg = {
 	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_UP,
 	.dir = GPIOMUX_IN,
+};
+#endif
+
+#if defined(CONFIG_SENSORS_AD7146)
+static struct gpiomux_setting grip_sda_active_config = {
+	.func = GPIOMUX_FUNC_4,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+static struct gpiomux_setting grip_scl_active_config = {
+	.func = GPIOMUX_FUNC_5,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+static struct gpiomux_setting grip_suspend_config = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
 };
 #endif
 
@@ -900,6 +942,20 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 		},
 	},
 #endif
+#if defined(CONFIG_SENSORS_AD7146)
+	{
+		.gpio      = 25,        /* BLSP5 SDA */
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &grip_sda_active_config,
+		},
+	},
+	{
+		.gpio      = 26,        /* BLSP5 SCL */
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &grip_scl_active_config,
+		},
+	},
+#endif
 #if !defined(CONFIG_SENSORS_SSP_STM)
 	{
 		.gpio      = 83,		/* BLSP11 QUP I2C_DAT */
@@ -1180,6 +1236,15 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[2],
 		},
 	},
+#if defined(CONFIG_SENSORS_AD7146)
+	{
+		.gpio = 137, /* GRIP INT */
+		.settings = {
+			[GPIOMUX_ACTIVE]    = &grip_suspend_config,
+			[GPIOMUX_SUSPENDED] = &grip_suspend_config,
+		},
+	},
+#endif
 };
 
 static struct gpiomux_setting pri_auxpcm_act_cfg = {

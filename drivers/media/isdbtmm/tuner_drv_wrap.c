@@ -90,7 +90,7 @@ int tuner_drv_ctl_power( int data )
 	/* power on */
 	if( data == TUNER_DRV_CTL_POWON )
 	{
-		DEBUG_PRINT("tuner_drv_ctl_power poweron");
+		printk("tuner_drv_ctl_power poweron\n");
 		
 		/* poweron gpio config setting */
 		tuner_drv_gpio_config_poweron();
@@ -109,7 +109,7 @@ int tuner_drv_ctl_power( int data )
 	/* power off */
 	else
 	{
-		printk("tuner_drv_ctl_power poweroff");
+		printk("tuner_drv_ctl_power poweroff\n");
 		
 		/* poweroff gpio config setting */
 		tuner_drv_gpio_config_poweroff();

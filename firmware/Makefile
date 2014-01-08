@@ -151,7 +151,7 @@ fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_0200.bin
 fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007_0200.bin
 fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9010_0076.bin
 fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9010_0174.bin
-fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9010_0207.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9010_0208.bin
 fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_013C.bin
 
 fw-shipped-$(CONFIG_KEYBOARD_CYPRESS_TOUCHKEY) += tkey/hlte_cypress_tkey.fw
@@ -165,6 +165,8 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_b0
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_b0_4_3_new.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_b0_5_1.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_b0_5_1_fac.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_js_b0_5_1.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_js_b0_5_1_fac.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_b0_nep_14.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI) += tsp_synaptics/synaptics_b0_nep_1F.fw
 

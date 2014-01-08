@@ -186,8 +186,6 @@ static int smt113j_spi_cmd_init ( void )
 	struct spi_message  m    = {{ 0 }};
 	struct spi_transfer t[3] = {{ 0 }};
 
-	DEBUG_PRINT("smt113j_spi_cmd_init << Start >>");
-
 	/*** SPI message init ***/
 	spi_message_init ( &m );
 
@@ -210,7 +208,7 @@ static int smt113j_spi_cmd_init ( void )
 		ERROR_PRINT ("smt113j_spi_cmd_init : Sync Error << ret = %d >>", ret );
 	}
 	
-	DEBUG_PRINT("smt113j_spi_cmd_init << End : %d >>", ret );
+	printk("smt113j_spi_cmd_init << End : %d >>\n", ret );
 	
 	return ( ret );
 	
@@ -228,8 +226,6 @@ static int smt113j_spi_cmd_pktsync ( void )
 	struct spi_message  m    = {{ 0 }};
 	struct spi_transfer t[3] = {{ 0 }};
 
-	DEBUG_PRINT("smt113j_spi_cmd_pktsync << Start >>");
-	
 	/*** SPI message init ***/
 	spi_message_init ( &m );
 
@@ -255,7 +251,7 @@ static int smt113j_spi_cmd_pktsync ( void )
 					 ret );
 	}
 	
-	DEBUG_PRINT("smt113j_spi_cmd_pktsync << End : %d >>", ret );
+	printk("smt113j_spi_cmd_pktsync << End : %d >>\n", ret );
 
 	return ( ret );
 }
@@ -410,8 +406,6 @@ static int SMT113J_SPI_open(struct inode *inode, struct file *filp)
 				 minorno = 0;
 	unsigned char *devarea = NULL;
 
-	DEBUG_PRINT("SMT113J_SPI_open << Start >>");
-
 	majorno = imajor(filp->f_dentry->d_inode);
 	minorno = iminor(filp->f_dentry->d_inode);
 
@@ -451,7 +445,7 @@ static int SMT113J_SPI_open(struct inode *inode, struct file *filp)
 	
 	spi_open_cnt++;
 	
-	DEBUG_PRINT("SMT113J_SPI_open << End >>");
+	printk("SMT113J_SPI_open << End >>, spi_open_cnt = %d\n", spi_open_cnt);
 	
 	return ( ret );
 
@@ -464,8 +458,6 @@ static int SMT113J_SPI_open(struct inode *inode, struct file *filp)
 static int SMT113J_SPI_release(struct inode *inode, struct file *filp)
 {
 	int ret = 0;
-
-	DEBUG_PRINT("SMT113J_SPI_release << Start >>");
 
 	/*** Device Open Check ***/
 	if ( 0 == spi_open_cnt )
@@ -503,7 +495,7 @@ static int SMT113J_SPI_release(struct inode *inode, struct file *filp)
 	pwrite = 0;
 	pread  = 0;
 	
-	DEBUG_PRINT("SMT113J_SPI_release << End >>");
+	printk("SMT113J_SPI_release << End >>, ret = %d\n", ret);
 
 	return ret;
 }
@@ -531,17 +523,15 @@ static ssize_t SMT113J_SPI_read(struct file *filp,
 	if ( SMT113J_SPI_SYNC_RUN != spi_work_thread->status )
 	{
 		/*** no packet */
-		DEBUG_PRINT("SMT113J_SPI_read << End : No Packet Sync Command(%d) >>", 
+		printk("SMT113J_SPI_read << End : No Packet Sync Command(%d) >>\n", 
 					spi_work_thread->status );
 		return ( 0 );
 	}
 
 	if ( pwrite == pread )
 	{
-#ifdef 	USER_BUF_DEBUG
 		/*** not received packet ***/
-		DEBUG_PRINT("SMT113J_SPI_read << End : No Packet >>");
-#endif	/* USER_BUF_DEBUG */
+		printk("SMT113J_SPI_read << End : No Packet in kernel buffer>>\n");
 		return ( 0 );
 	}
 	
@@ -749,19 +739,19 @@ static long SMT113J_SPI_ioctl(struct file *filp,
 	{
 		/*** SPI INIT ***/
 		case TUNER_SPI_IOCTL_INIT:
-			DEBUG_PRINT ("-> TUNER_SPI_IOCTL_INIT");
+			printk ("-> TUNER_SPI_IOCTL_INIT\n");
 			ret = smt113j_spi_cmd_init();
 			break;
 
 		/*** thread stop ***/
 		case TUNER_SPI_IOCTL_PKTANSYNC:
-			DEBUG_PRINT ("-> TUNER_SPI_IOCTL_PKTANSYNC");
+			printk ("-> TUNER_SPI_IOCTL_PKTANSYNC\n");
 			smt113j_spi_thread_Stop();
 			break;
 				
 		/*** SPI Packet Synchronize ***/
 		case TUNER_SPI_IOCTL_PKTSYNC:
-			DEBUG_PRINT ("-> TUNER_SPI_IOCTL_PKTSYNC");
+			printk ("-> TUNER_SPI_IOCTL_PKTSYNC\n");
 			smt113j_spi_thread_Stop();
 			ret = smt113j_spi_cmd_pktsync();
 			smt113j_spi_thread_Start();
@@ -769,7 +759,7 @@ static long SMT113J_SPI_ioctl(struct file *filp,
 
 		/*** SPI Buffer Status ***/
 		case TUNER_SPI_IOCTL_BUFSTAT:
-			DEBUG_PRINT ("-> TUNER_SPI_IOCTL_BUFSTAT");
+			printk ("-> TUNER_SPI_IOCTL_BUFSTAT\n");
 			ret = smt113j_spi_cmd_bufstat ( &pkt_status );
 			
 			if ( 0 != ret )
@@ -837,8 +827,6 @@ static int smt113j_spi_thread_Init ( void )
 	int ret = 0;
 	struct sched_param param = { .sched_priority = 99 };
 	
-	DEBUG_PRINT("smt113j_spi_thread_Init: Start");
-	
 	spi_work_thread = kmalloc ( sizeof ( smt113j_spi_thread_t ), GFP_KERNEL );
 	
 	if ( !spi_work_thread ) 
@@ -877,7 +865,7 @@ static int smt113j_spi_thread_Init ( void )
 		goto ERROR3;
 	}
 
-	DEBUG_PRINT("smt113j_spi_thread_Init: End");
+	printk("smt113j_spi_thread_Init: End\n");
 
 	return ( ret );
 
@@ -907,8 +895,7 @@ ERROR2:
  ******************************************************************************/
 static int smt113j_spi_thread_Start ( void )
 {
-	DEBUG_PRINT("smt113j_spi_thread_Start : Start!");
-	DEBUG_PRINT("-> spi_work_thread->status[%d]", spi_work_thread->status );
+	printk("-> spi_work_thread->status[%d]\n", spi_work_thread->status );
 
 	/* multiple check */
 	if ( SMT113J_SPI_SYNC_RUN == spi_work_thread->status ) 
@@ -985,7 +972,7 @@ static int smt113j_spi_thread_loop ( void  *arg )
 	int ret = 0;
 	unsigned char status = 0;
 	
-	DEBUG_PRINT("smt113j_spi_thread_loop : Start!");
+	printk("smt113j_spi_thread_loop : Start!\n");
 
 	while ( !kthread_should_stop() ) 
 	{
@@ -1053,7 +1040,7 @@ static int smt113j_spi_thread_loop ( void  *arg )
 				}
 				else
 				{
-					DEBUG_PRINT ("smt113j_spi_thread_loop : Not Ready");
+					printk("smt113j_spi_thread_loop : No data in tuner buffer or Error occured\n");
 					
 					/*** inside chip buffer is over or under run check ***/
 					if ( 0 != ( status & 0x06 ))
@@ -1207,9 +1194,6 @@ static int smt113j_spi_thread_read ( void )
 static int smt113j_spi_probe(struct spi_device *spi)
 {
 	int ret;
-	
-	DEBUG_PRINT("smt113j_spi_probe : Start!");
-	
 	spi->bits_per_word = 8;
 	spi->mode = SPI_MODE_0;
 	spi->max_speed_hz = (27 * 1000 * 1000); /* 30MHz */
@@ -1226,7 +1210,7 @@ static int smt113j_spi_probe(struct spi_device *spi)
 					 WAKE_LOCK_SUSPEND, 
 					 "smt113j_spi_wake_lock" );
 	
-	DEBUG_PRINT("smt113j_spi_probe : End!");
+	printk("smt113j_spi_probe : End!\n");
 
 	return ( 0 );
 }
@@ -1236,11 +1220,9 @@ static int smt113j_spi_probe(struct spi_device *spi)
 /******************************************************************************/
 static int __devexit smt113j_spi_remove(struct spi_device *spi)
 {
-	DEBUG_PRINT ("smt113j_spi_remove : Start");
-
 	smt113j_spi_device = NULL;
 
-	DEBUG_PRINT ("smt113j_spi_remove : End");
+	printk ("smt113j_spi_remove : End\n");
 	
 	return 0;
 }
@@ -1253,8 +1235,6 @@ static int SMT113J_SPI_probe(struct platform_device *pdev)
 {
 	int 	ret;
 	struct	device *SMT113J_SPI_dev;
-
-	DEBUG_PRINT("SMT113J_SPI_probe : Start!");
 
  	ret = register_chrdev ( NODE_MAJOR, NODE_PATHNAME, &SMT113J_SPI_ctl_fops );
 	
@@ -1304,7 +1284,7 @@ static int SMT113J_SPI_probe(struct platform_device *pdev)
 
 	smt113j_spi_thread_Init();
 	
-	DEBUG_PRINT("SMT113J_SPI_probe : End!");
+	printk("SMT113J_SPI_probe : End!\n");
 	
 	return 0;
 }
@@ -1317,11 +1297,9 @@ static int SMT113J_SPI_remove ( struct platform_device *pdev )
 {
 	int ret = 0;
 	
-	DEBUG_PRINT("SMT113J_SPI_remove : Start");
-	
 	spi_unregister_driver ( &smt113j_spi_driver );
 
-	DEBUG_PRINT("SMT113J SMT113J_SPI_remove : End");
+	printk("SMT113J SMT113J_SPI_remove : End\n");
 	
 	return ( ret );
 }

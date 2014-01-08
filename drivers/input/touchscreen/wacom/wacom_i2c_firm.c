@@ -24,7 +24,7 @@ unsigned char *Binary;
 /* HLTE */
 #if defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_HLTELGT)||\
 	defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
-char Firmware_checksum[] = { 0x1F, 0xE8, 0xD1, 0xA9, 0x3E, };/*ver 0x207*/
+char Firmware_checksum[] = { 0x1F, 0x4D, 0x20, 0xD3, 0x20, };/*ver 0x208*/
 #else
 char Firmware_checksum[] = { 0x1F, 0x19, 0x7E, 0x3D, 0xB3, };/*ver 0x174*/
 #endif

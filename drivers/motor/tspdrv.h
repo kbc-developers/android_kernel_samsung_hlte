@@ -91,13 +91,11 @@ int32_t g_nforce_32;
 
 #if defined(CONFIG_MACH_KS01SKT) \
 	   || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) \
-	   || defined(CONFIG_MACH_JACTIVESKT) || defined(CONFIG_MACH_HLTEDCM)
+	   || defined(CONFIG_MACH_JACTIVESKT)
 #define MOTOR_STRENGTH			94/*MOTOR_STRENGTH 94 %*/
 #elif defined(CONFIG_MACH_LT03EUR) || defined(CONFIG_MACH_LT03SKT)\
 	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)
 #define MOTOR_STRENGTH			98/*MOTOR_STRENGTH 98 %*/
-#elif defined(CONFIG_MACH_JS01LTEDCM)
-#define MOTOR_STRENGTH			93/*MOTOR_STRENGTH 93 %*/
 #else
 #define MOTOR_STRENGTH			98/*MOTOR_STRENGTH 98 %*/
 #endif
@@ -108,14 +106,12 @@ int32_t g_nforce_32;
 	#define GP_CLK_N_DEFAULT			137
 	#define GP_CLK_D_DEFAULT			68  /* 50% duty cycle */
 	#define IMM_PWM_MULTIPLIER			137
-
-
-#elif defined (CONFIG_MACH_HLTESPR) || defined (CONFIG_MACH_HLTEEUR)
+#elif defined (CONFIG_MACH_HLTESPR) || defined (CONFIG_MACH_HLTEEUR) || defined(CONFIG_SEC_LOCALE_KOR_H) || defined (CONFIG_MACH_HLTETMO)
 	#define GP_CLK_M_DEFAULT                        3
 	#define GP_CLK_N_DEFAULT                        138
 	#define GP_CLK_D_DEFAULT                        69  /* 50% duty cycle	*/
 	#define IMM_PWM_MULTIPLIER			137
-#elif defined (CONFIG_MACH_JS01LTEDCM)
+#elif defined (CONFIG_MACH_HLTEDCM) || defined (CONFIG_MACH_HLTEKDI) || defined (CONFIG_MACH_JS01LTEDCM)
 	#define GP_CLK_M_DEFAULT			2
 	#define GP_CLK_N_DEFAULT			92
 	#define GP_CLK_D_DEFAULT			46  /* 50% duty cycle */

@@ -44,7 +44,7 @@
 #define WACOM_FW_NAME_W9001		"epen/W9001_B911.bin"
 #if defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_HLTELGT) ||\
 	defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) 
-#define WACOM_FW_NAME_W9010		"epen/W9010_0207.bin"
+#define WACOM_FW_NAME_W9010		"epen/W9010_0208.bin"
 #else
 #define WACOM_FW_NAME_W9010		"epen/W9010_0174.bin"
 #endif

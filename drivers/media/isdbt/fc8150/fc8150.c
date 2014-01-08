@@ -466,6 +466,7 @@ ssize_t isdbt_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 		= (struct ISDBT_OPEN_INFO_T *)filp->private_data;
 	struct fci_ringbuffer *cibuf = &hOpen->RingBuffer;
 	ssize_t len, read_len = 0;
+	static unsigned int log_count=0;
 
 	printk("isdb isdbt_read count = %d \n", count);
 	if (!cibuf->data || !count)	{
@@ -474,9 +475,9 @@ ssize_t isdbt_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 	}
 
 	if (non_blocking && (fci_ringbuffer_empty(cibuf)))	{
-		printk("isdbt_read return EWOULDBLOCK\n");
-	//	while(non_blocking && (fci_ringbuffer_empty(cibuf)))
-	//	 usleep_range(5000,5000); 
+		if(log_count%10 == 0)
+			printk("isdbt_read return EWOULDBLOCK count = %d\n", log_count);
+        log_count++;
 		return -EWOULDBLOCK;
 	}
 
@@ -497,7 +498,7 @@ ssize_t isdbt_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 	read_len = fci_ringbuffer_read_user(cibuf, buf, len);
 
 	mutex_unlock(&ringbuffer_lock);
-
+    log_count = 0;
 	return read_len;
 }
 

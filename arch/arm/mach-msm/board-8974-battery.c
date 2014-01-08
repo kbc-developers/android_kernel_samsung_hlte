@@ -738,7 +738,7 @@ static struct battery_data_t samsung_battery_data[] = {
 		.temp_cocold = -4200,
 #elif defined(CONFIG_MACH_HLTEDCM)
 		.RCOMP0 = 0x7A,
-		.RCOMP_charging = 0x84,
+		.RCOMP_charging = 0x8A,
 		.temp_cohot = -1025,
 		.temp_cocold = -3675,
 #elif defined(CONFIG_MACH_HLTEKDI)
@@ -747,7 +747,7 @@ static struct battery_data_t samsung_battery_data[] = {
 		.temp_cohot = -1025,
 		.temp_cocold = -3675,
 #elif defined(CONFIG_MACH_JS01LTEDCM)
-		.RCOMP0 = 0x5D,
+		.RCOMP0 = 0x70,
 		.RCOMP_charging = 0x7F,
 		.temp_cohot = -700,
 		.temp_cocold = -4875,
