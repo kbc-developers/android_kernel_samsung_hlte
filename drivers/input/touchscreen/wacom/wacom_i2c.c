@@ -136,8 +136,7 @@ static void wacom_i2c_enable(struct wacom_i2c *wac_i2c)
 			"%s\n", __func__);
 
 #ifdef BATTERY_SAVING_MODE
-	if (wac_i2c->battery_saving_mode
-		&& wac_i2c->pen_insert)
+	if (wac_i2c->pen_insert)
 		en = false;
 #endif
 
@@ -218,8 +217,7 @@ static void pen_insert_work(struct work_struct *work)
 
 #ifdef BATTERY_SAVING_MODE
 	if (wac_i2c->pen_insert) {
-		if (wac_i2c->battery_saving_mode)
-			wacom_i2c_disable(wac_i2c);
+		wacom_i2c_disable(wac_i2c);
 	} else {
 		wacom_i2c_enable(wac_i2c);
 	}
@@ -890,19 +888,10 @@ static ssize_t epen_saving_mode_store(struct device *dev,
 				size_t count)
 {
 	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
-	int val;
 
-	if (sscanf(buf, "%u", &val) == 1)
-		wac_i2c->battery_saving_mode = !!val;
-
-	dev_info(&wac_i2c->client->dev, "%s: %s\n",
-			__func__, val ? "checked" : "unchecked");
-
-	if (wac_i2c->battery_saving_mode) {
-		if (wac_i2c->pen_insert)
+	if (wac_i2c->pen_insert) {
 			wacom_i2c_disable(wac_i2c);
 	} else {
-		if (wac_i2c->enabled)
 			wacom_i2c_enable(wac_i2c);
 	}
 	return count;
@@ -1323,12 +1312,14 @@ static int wacom_i2c_remove(struct i2c_client *client)
 	cancel_delayed_work_sync(&wac_i2c->boot_done_work);
 #endif
 	cancel_delayed_work_sync(&wac_i2c->pen_insert_dwork);
+#ifdef WACOM_BOOSTER
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_off);
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_chg);
-
+#endif
 	mutex_destroy(&wac_i2c->lock);
+#ifdef WACOM_BOOSTER
 	mutex_destroy(&wac_i2c->dvfs_lock);
-
+#endif
 	sysfs_remove_group(&wac_i2c->dev->kobj, &epen_attr_group);
 
 	input_unregister_device(wac_i2c->input_dev);
@@ -1673,11 +1664,16 @@ err_input_allocate_device:
 	cancel_delayed_work_sync(&wac_i2c->boot_done_work);
 #endif
 	cancel_delayed_work_sync(&wac_i2c->pen_insert_dwork);
+    
+#ifdef WACOM_BOOSTER
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_off);
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_chg);
+#endif
 	wac_i2c->wac_pdata->wacom_stop(wac_i2c);
-	mutex_destroy(&wac_i2c->lock);
+    mutex_destroy(&wac_i2c->lock);
+#ifdef WACOM_BOOSTER
 	mutex_destroy(&wac_i2c->dvfs_lock);
+#endif
 err_wacom_i2c_bootloader_ver:
 #ifdef CONFIG_SEC_H_PROJECT
  err_wacom_i2c_send_timeout:
