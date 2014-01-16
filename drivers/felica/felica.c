@@ -80,7 +80,9 @@ static int gfelica_sps_pin = 130;	//Select Power Supply
 #define HW_REV09_OR_10		7	// to fix hltedcm i2c h/w issue in REV 09/10.
 extern void of_sii8240_hw_poweron(bool enable);  // to fix hltedcm i2c h/w issue in REV 09/10.  Defined in driver/video/msm/mhl_v2/sii8240.c
 #elif defined(CONFIG_MACH_HLTEKDI)
+#ifndef CONFIG_FELICA_NO_SECURE
 static int g_uicc_initrev = 4;
+#endif
 static int gfelica_sps_pin = -1;
 #elif defined(CONFIG_MACH_JS01LTEDCM)
 static int g_uicc_initrev = 8;      // HW Rev 0.4
