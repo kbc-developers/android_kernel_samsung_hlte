@@ -1071,6 +1071,7 @@ static int felica_CpuAll(void)
 
 static uint8_t felica_get_tamper_fuse_cmd(void)
 {
+#ifndef CONFIG_FELICA_NO_SECURE
 	u32 fuse_id = 0;
 	int ret;
 
@@ -1090,13 +1091,16 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 	felica_CpuAll();
 
 	return (uint8_t)fuse_id;
+#else
+	return 0;
+#endif
 }
 
 #elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974)
 
 static uint8_t felica_get_tamper_fuse_cmd(void)
 {
-
+#ifndef CONFIG_FELICA_NO_SECURE
 	uint32_t fuse_id = FELICA_HLOS_IMG_TAMPER_FUSE;
 	void *cmd_buf;
 	size_t cmd_len;
@@ -1114,6 +1118,9 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 	FELICA_LOG_DEBUG("[MFDD] %s END resp_buf = %d\n",__func__, resp_buf);
 	
 	return resp_buf;
+#else
+	return 0;
+#endif
 }
 
 #endif
