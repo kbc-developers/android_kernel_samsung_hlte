@@ -61,20 +61,28 @@ typedef struct {
 
 static int set_tamper_fuse_cmd(void)
 {
+#ifndef CONFIG_TZIC_NO_SECURE
 	uint32_t fuse_id = HLOS_IMG_TAMPER_FUSE;
 
 	return scm_call(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID, &fuse_id,
 		sizeof(fuse_id), NULL, 0);
+#else
+	return 0;
+#endif
 }
 
 static uint8_t get_tamper_fuse_cmd(void)
 {
+#ifndef CONFIG_TZIC_NO_SECURE
 	uint32_t fuse_id = HLOS_IMG_TAMPER_FUSE;
 	uint8_t resp_buf;
 
 	scm_call(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID, &fuse_id,
 		sizeof(fuse_id), &resp_buf, sizeof(resp_buf));
 	return resp_buf;
+#else
+	return 0;
+#endif
 }
 
 static uint8_t  csb_set_cert_index(int index)
