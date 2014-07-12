@@ -26,6 +26,16 @@
 #include <linux/workqueue.h>
 #include <linux/proc_fs.h>
 #include <linux/jiffies.h>
+#include <linux/of_gpio.h>
+
+#if defined(CONFIG_EXTCON)
+#include <linux/extcon.h>
+struct sec_battery_extcon_cable{
+	struct extcon_specific_cable_nb extcon_nb;
+	struct notifier_block batt_nb;
+	int cable_index;
+};
+#endif /* CONFIG_EXTCON */
 
 #define ADC_CH_COUNT		10
 #define ADC_SAMPLE_COUNT	10
@@ -45,7 +55,13 @@ struct sec_battery_info {
 	struct power_supply psy_bat;
 	struct power_supply psy_usb;
 	struct power_supply psy_ac;
+	struct power_supply psy_wireless;
+	struct power_supply psy_ps;
 	unsigned int irq;
+
+#if defined(CONFIG_EXTCON)
+	struct sec_battery_extcon_cable extcon_cable_list[EXTCON_NONE];
+#endif /* CONFIG_EXTCON */
 
 	int status;
 	int health;
@@ -127,6 +143,14 @@ struct sec_battery_info {
 
 	/* wireless charging enable */
 	int wc_enable;
+	int wc_status;
+
+	int wire_status;
+
+	/* wearable charging */
+	int ps_enable;
+	int ps_status;
+	int ps_changed;
 
 	/* test mode */
 	int test_mode;
@@ -136,6 +160,7 @@ struct sec_battery_info {
 	int siop_level;
 #if defined(CONFIG_SAMSUNG_BATTERY_ENG_TEST)
 	int stability_test;
+	int eng_not_full_status;
 #endif
 };
 
@@ -230,5 +255,16 @@ enum {
 	BATT_STABILITY_TEST,
 #endif
 };
+
+#ifdef CONFIG_OF
+extern int adc_read(struct sec_battery_info *battery, int channel);
+extern void board_battery_init(struct platform_device *pdev, struct sec_battery_info *battery);
+extern void cable_initial_check(struct sec_battery_info *battery);
+extern bool sec_bat_check_jig_status(void);
+extern void adc_exit(struct sec_battery_info *battery);
+extern int sec_bat_check_cable_callback(struct sec_battery_info *battery);
+extern bool sec_bat_check_cable_result_callback(int cable_type);
+extern bool sec_bat_check_callback(struct sec_battery_info *battery);
+#endif
 
 #endif /* __SEC_BATTERY_H */

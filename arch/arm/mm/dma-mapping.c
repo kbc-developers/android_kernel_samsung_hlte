@@ -833,12 +833,8 @@ static void dma_cache_maint_page(struct page *page, unsigned long offset,
 		if (PageHighMem(page)) {
 			if (len + offset > PAGE_SIZE)
 				len = PAGE_SIZE - offset;
-			vaddr = kmap_high_get(page);
-			if (vaddr) {
-				vaddr += offset;
-				op(vaddr, len, dir);
-				kunmap_high(page);
-			} else if (cache_is_vipt()) {
+
+			if (cache_is_vipt_nonaliasing()) {
 #ifdef CONFIG_TIMA_RKP_DMA_MVA_TO_SETWAY
                 tima_cache_maint_page(page,dir);
 #else
@@ -847,6 +843,12 @@ static void dma_cache_maint_page(struct page *page, unsigned long offset,
 				op(vaddr + offset, len, dir);
 				kunmap_atomic(vaddr);
 #endif/*CONFIG_TIMA_RKP_DMA_MVA_TO_SETWAY*/
+			} else {
+				vaddr = kmap_high_get(page);
+				if (vaddr) {
+					op(vaddr + offset, len, dir);
+					kunmap_high(page);
+				}
 			}
 		} else {
 			vaddr = page_address(page) + offset;

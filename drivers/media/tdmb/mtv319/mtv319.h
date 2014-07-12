@@ -131,7 +131,7 @@ INT  rtvTDMB_ReadFIC(U8 *pbBuf);
 void rtvTDMB_CloseFIC(void);
 INT  rtvTDMB_OpenFIC(void);
 INT  rtvTDMB_ScanFrequency(U32 dwChFreqKHz);
-INT  rtvTDMB_Initialize(void);
+INT  rtvTDMB_Initialize(unsigned long interface);
 
 #ifdef __cplusplus
 }

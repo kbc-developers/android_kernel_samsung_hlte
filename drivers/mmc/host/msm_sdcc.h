@@ -197,6 +197,8 @@
 #define MAX_TESTBUS		8
 #define MCI_TESTBUS_ENA		(1 << 3)
 
+#define MCI_CORE_HC_MODE	0x78
+
 #define MCI_SDCC_DEBUG_REG	0x124
 
 #define MCI_IRQENABLE	\
@@ -225,8 +227,6 @@
 
 /* Set the request timeout to 10secs */
 #define MSM_MMC_REQ_TIMEOUT	10000 /* msecs */
-
-extern struct class *sec_class;	/* Sysfs about SD Card Detection */
 
 /*
  * Controller HW limitations
@@ -458,6 +458,7 @@ struct msmsdcc_host {
 #define MSMSDCC_SW_RST_CFG_BROKEN	(1 << 11)
 #define MSMSDCC_DATA_PEND_FOR_CMD53	(1 << 12)
 #define MSMSDCC_TESTBUS_DEBUG		(1 << 13)
+#define MSMSDCC_SDHCI_MODE_SUPPORTED	(1 << 14)
 
 #define set_hw_caps(h, val)		((h)->hw_caps |= val)
 #define is_sps_mode(h)			((h)->hw_caps & MSMSDCC_SPS_BAM_SUP)
@@ -475,6 +476,7 @@ struct msmsdcc_host {
 				((h)->hw_caps & MSMSDCC_SW_RST_CFG_BROKEN)
 #define is_data_pend_for_cmd53(h) ((h)->hw_caps & MSMSDCC_DATA_PEND_FOR_CMD53)
 #define is_testbus_debug(h) ((h)->hw_caps & MSMSDCC_TESTBUS_DEBUG)
+#define is_sdhci_supported(h) ((h)->hw_caps & MSMSDCC_SDHCI_MODE_SUPPORTED)
 
 /* Set controller capabilities based on version */
 static inline void set_default_hw_caps(struct msmsdcc_host *host)
@@ -513,7 +515,8 @@ static inline void set_default_hw_caps(struct msmsdcc_host *host)
 				 MSMSDCC_AUTO_CMD21 |
 				 MSMSDCC_DATA_PEND_FOR_CMD53 |
 				 MSMSDCC_TESTBUS_DEBUG |
-				 MSMSDCC_SW_RST_CFG_BROKEN;
+				 MSMSDCC_SW_RST_CFG_BROKEN |
+				 MSMSDCC_SDHCI_MODE_SUPPORTED;
 }
 
 int msmsdcc_set_pwrsave(struct mmc_host *mmc, int pwrsave);

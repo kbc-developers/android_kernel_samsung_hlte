@@ -435,6 +435,7 @@ static void *msm_bus_noc_allocate_noc_data(struct platform_device *pdev,
 		GFP_KERNEL);
 	if (!ninfo->mas_modes) {
 		MSM_BUS_DBG("Couldn't alloc mem for noc master-modes\n");
+		kfree(ninfo);
 		return NULL;
 	}
 
@@ -444,9 +445,7 @@ static void *msm_bus_noc_allocate_noc_data(struct platform_device *pdev,
 			GFP_KERNEL);
 		if (!ninfo->cdata[i].mas) {
 			MSM_BUS_DBG("Couldn't alloc mem for noc master-bw\n");
-			kfree(ninfo->mas_modes);
-			kfree(ninfo);
-			return NULL;
+			goto err;
 		}
 
 		ninfo->cdata[i].slv = kzalloc(sizeof(struct
@@ -454,7 +453,6 @@ static void *msm_bus_noc_allocate_noc_data(struct platform_device *pdev,
 			GFP_KERNEL);
 		if (!ninfo->cdata[i].slv) {
 			MSM_BUS_DBG("Couldn't alloc mem for noc master-bw\n");
-			kfree(ninfo->cdata[i].mas);
 			goto err;
 		}
 	}
@@ -488,6 +486,12 @@ skip_mem:
 	return (void *)ninfo;
 
 err:
+	for (i = 0; i < NUM_CTX; i++) {
+		if (ninfo->cdata[i].mas)
+			kfree(ninfo->cdata[i].mas);
+		if (ninfo->cdata[i].slv)
+			kfree(ninfo->cdata[i].slv);
+	}
 	kfree(ninfo->mas_modes);
 	kfree(ninfo);
 	return NULL;
@@ -511,7 +515,7 @@ static void msm_bus_noc_update_bw(struct msm_bus_inode_info *hop,
 	struct msm_bus_noc_info *ninfo;
 	struct msm_bus_noc_qos_bw qos_bw;
 	int i, ports;
-	long int bw;
+	int64_t bw;
 	struct msm_bus_noc_commit *sel_cd =
 		(struct msm_bus_noc_commit *)sel_cdata;
 
@@ -563,14 +567,8 @@ static void msm_bus_noc_update_bw(struct msm_bus_inode_info *hop,
 
 skip_mas_bw:
 	ports = hop->node_info->num_sports;
-	if (ports == 0) {
-		MSM_BUS_DBG("\nDIVIDE BY 0, hop: %d\n",
-			hop->node_info->priv_id);
-		return;
-	}
-	bw = INTERLEAVED_BW(fab_pdata, add_bw, ports);
 	for (i = 0; i < ports; i++) {
-		sel_cd->slv[hop->node_info->slavep[i]].bw += bw;
+		sel_cd->slv[hop->node_info->slavep[i]].bw += add_bw;
 		sel_cd->slv[hop->node_info->slavep[i]].hw_id =
 			hop->node_info->slv_hw_id;
 		MSM_BUS_DBG("NOC: Update slave_bw for ID: %d -> %llu\n",
@@ -606,13 +604,6 @@ static int msm_bus_noc_port_unhalt(uint32_t haltid, uint8_t mport)
 	return 0;
 }
 
-static void msm_bus_noc_config_master(
-	struct msm_bus_fabric_registration *pdata,
-	struct msm_bus_inode_info *info,
-	uint64_t req_clk, uint64_t req_bw)
-{
-}
-
 int msm_bus_noc_hw_init(struct msm_bus_fabric_registration *pdata,
 	struct msm_bus_hw_algorithm *hw_algo)
 {
@@ -626,7 +617,7 @@ int msm_bus_noc_hw_init(struct msm_bus_fabric_registration *pdata,
 	hw_algo->commit = msm_bus_noc_commit;
 	hw_algo->port_halt = msm_bus_noc_port_halt;
 	hw_algo->port_unhalt = msm_bus_noc_port_unhalt;
-	hw_algo->config_master = msm_bus_noc_config_master;
+	hw_algo->config_master = NULL;
 
 	return 0;
 }

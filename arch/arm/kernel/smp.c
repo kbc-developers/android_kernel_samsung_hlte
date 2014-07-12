@@ -42,11 +42,10 @@
 #include <asm/ptrace.h>
 #include <asm/localtimer.h>
 #include <asm/smp_plat.h>
-#if CONFIG_SEC_DEBUG
+#include <asm/mach/arch.h>
+#ifdef CONFIG_SEC_DEBUG
 #include <mach/sec_debug.h>
 #endif
-
-#include <asm/mach/arch.h>
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -559,17 +558,19 @@ static void percpu_timer_stop(void)
 
 static DEFINE_RAW_SPINLOCK(stop_lock);
 
+DEFINE_PER_CPU(struct pt_regs, regs_before_stop);
 /*
  * ipi_cpu_stop - handle IPI from smp_send_stop()
  */
-static void ipi_cpu_stop(unsigned int cpu)
+static void ipi_cpu_stop(unsigned int cpu, struct pt_regs *regs)
 {
 	if (system_state == SYSTEM_BOOTING ||
 	    system_state == SYSTEM_RUNNING) {
+		per_cpu(regs_before_stop, cpu) = *regs;
 		raw_spin_lock(&stop_lock);
 		printk(KERN_CRIT "CPU%u: stopping\n", cpu);
 		dump_stack();
-#if CONFIG_SEC_DEBUG
+#ifdef CONFIG_SEC_DEBUG
 		sec_debug_dump_stack();
 #endif
 		raw_spin_unlock(&stop_lock);
@@ -581,7 +582,6 @@ static void ipi_cpu_stop(unsigned int cpu)
 	local_irq_disable();
 
 	flush_cache_all();
-	local_flush_tlb_all();
 
 	while (1)
 		cpu_relax();
@@ -684,7 +684,7 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 	case IPI_CPU_STOP:
 		irq_enter();
-		ipi_cpu_stop(cpu);
+		ipi_cpu_stop(cpu, regs);
 		irq_exit();
 		break;
 
@@ -702,6 +702,9 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 void smp_send_reschedule(int cpu)
 {
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	WARN_ON(cpu_is_offline(cpu));
+#endif
 	smp_cross_call(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 

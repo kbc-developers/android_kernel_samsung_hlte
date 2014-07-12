@@ -17,10 +17,6 @@
 #include <asm/page.h>
 #include <asm/tlbflush.h>
 
-#ifdef CONFIG_TIMA_TEST_INFRA_MODULE
-#include <linux/export.h>
-#endif
-
 #include "mm.h"
 
 #ifdef CONFIG_ARM_LPAE
@@ -167,6 +163,7 @@ no_pgd:
 	}
 #endif
 #ifdef  CONFIG_TIMA_RKP_L1_TABLES
+	if (tima_is_pg_protected((unsigned long) pgd) != 0) {
 	__asm__ __volatile__ (
 		"stmfd  sp!,{r0-r1, r11}\n"
 		"mov   	r11, r0\n"
@@ -185,9 +182,7 @@ no_pgd:
 	tima_verify_state(pmd_base + 0x1000, 0, 0, 3);
 	tima_verify_state(pmd_base + 0x2000, 0, 0, 3);
 	tima_verify_state(pmd_base + 0x3000, 0, 0, 3);
+	}
 #endif
 	__pgd_free(pgd_base);
 }
-#ifdef CONFIG_TIMA_TEST_INFRA_MODULE
-EXPORT_SYMBOL(pgd_free);
-#endif/*CONFIG_TIMA_TEST_INFRA_MODULE*/

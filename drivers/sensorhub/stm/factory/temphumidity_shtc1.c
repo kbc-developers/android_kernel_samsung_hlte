@@ -32,71 +32,40 @@
 #define IOCTL_READ_THM_BARO_DATA	_IOR(SHTC1_IOCTL_MAGIC, 0x06, unsigned short *)
 #define IOCTL_READ_THM_GYRO_DATA	_IOR(SHTC1_IOCTL_MAGIC, 0x07, unsigned short *)
 
-#if defined (CONFIG_MACH_HLTEATT)
-#define MODEL_NAME	"SM-N900A"
-#elif defined (CONFIG_MACH_H3GDUOS_CTC)
-#define MODEL_NAME	"SM-N9009"
-#elif defined (CONFIG_MACH_H3GDUOS_CU)
-#define MODEL_NAME	"SM-N9002"
-#elif defined (CONFIG_MACH_H3G_CHN_OPEN)
-#define MODEL_NAME	"SM-N9006"
-#elif defined (CONFIG_MACH_H3G_CHN_CMCC)
-#define MODEL_NAME	"SM-N9008"
-#elif defined (CONFIG_MACH_HLTEEUR)
-#define MODEL_NAME	"SM-N9005"
-#elif defined (CONFIG_MACH_HLTETMO)
-#define MODEL_NAME	"SM-N900T"
-#elif defined (CONFIG_MACH_HLTESPR)
-#define MODEL_NAME	"SM-N900P"
-#elif defined (CONFIG_MACH_HLTEVZW)
-#define MODEL_NAME	"SM-N900V"
-#elif defined (CONFIG_MACH_HLTEUSC)
-#define MODEL_NAME	"SM-N900R4"
-#elif defined (CONFIG_MACH_HLTESKT)
-#define MODEL_NAME	"SM-N900S"
-#elif defined (CONFIG_MACH_HLTEKTT)
-#define MODEL_NAME	"SM-N900K"
-#elif defined (CONFIG_MACH_HLTELGT)
-#define MODEL_NAME	"SM-N900L"
-#elif defined (CONFIG_MACH_HLTEDCM)
-#define MODEL_NAME	"SM-N900D"
-#elif defined (CONFIG_MACH_HLTEKDI)
-#define MODEL_NAME	"SM-N900J"
-#elif defined (CONFIG_MACH_JS01LTEDCM)
-#define MODEL_NAME	"SGH-N075"
-#elif defined (CONFIG_MACH_FLTEEUR)
-#define MODEL_NAME	"SM-G7905"
-#elif defined (CONFIG_MACH_FLTESKT)
-#define MODEL_NAME	"SM-G7905"
+#if defined(CONFIG_MACH_KLTE_EUR)
+#define MODEL_NAME	"SM-G900F"
+#elif defined(CONFIG_MACH_KLTE_ATT)
+#define MODEL_NAME	"SM-G900A"
+#elif defined(CONFIG_MACH_KLTE_SPR)
+#define MODEL_NAME	"SM-G900P"
+#elif defined(CONFIG_MACH_KLTE_TMO)
+#define MODEL_NAME	"SM-G900T"
+#elif defined(CONFIG_MACH_KLTE_USC)
+#define MODEL_NAME	"SM-G900R4"
+#elif defined(CONFIG_MACH_KLTE_VZW)
+#define MODEL_NAME	"SM-G900V"
+#elif defined(CONFIG_MACH_KLTE_DCM)
+#define MODEL_NAME	"SM-G900D"
+#elif defined(CONFIG_MACH_KLTE_KDI)
+#define MODEL_NAME	"SM-G900J"
+#elif defined(CONFIG_MACH_KLTE_SBM)
+#define MODEL_NAME	"SM-G900Z"
+#elif defined(CONFIG_MACH_KLTE_CMCC)
+#define MODEL_NAME	"SM-G9008V"
+#elif defined(CONFIG_MACH_KLTE_CTC)
+#define MODEL_NAME	"SM-G9009W"
+#elif defined(CONFIG_MACH_KLTE_CAN)
+#define MODEL_NAME	"SM-G900W8"
+#elif defined(CONFIG_MACH_K3GDUOS_CTC)
+#define MODEL_NAME	"SM-G9009D"
+#elif defined(CONFIG_MACH_KLTE_SKT)
+#define MODEL_NAME	"SM-G900S"
+#elif defined(CONFIG_MACH_KLTE_KTT)
+#define MODEL_NAME	"SM-G900K"
+#elif defined(CONFIG_MACH_KLTE_LGT)
+#define MODEL_NAME	"SM-G900L"
 #else
-#define MODEL_NAME	"SM-N900A"
-#endif
-
-#if defined(CONFIG_MACH_JF_ATT) || defined(CONFIG_MACH_JF_TMO) || \
-	defined(CONFIG_MACH_JF_EUR) || defined(CONFIG_MACH_JF_SPR) || \
-	defined(CONFIG_MACH_JF_USC) || defined(CONFIG_MACH_JF_VZW)
-/* {adc, temp*10}, -20 to +70 */
-static struct cp_thm_adc_table temp_table_cp[] = {
-	{200, 700}, {207, 690}, {214, 680}, {221, 670}, {248, 660},
-	{235, 650}, {243, 640}, {251, 630}, {259, 620}, {267, 610},
-	{276, 600}, {286, 590}, {295, 580}, {304, 570}, {314, 560},
-	{324, 550}, {336, 540}, {348, 530}, {360, 520}, {372, 510},
-	{383, 500}, {402, 490}, {422, 480}, {441, 470}, {461, 460},
-	{480, 450}, {495, 440}, {510, 430}, {526, 420}, {542, 410},
-	{558, 400}, {574, 390}, {591, 380}, {607, 370}, {624, 360},
-	{641, 350}, {659, 340}, {677, 330}, {696, 320}, {705, 310},
-	{733, 300}, {752, 290}, {771, 280}, {790, 270}, {808, 260},
-	{828, 250}, {848, 240}, {869, 230}, {890, 220}, {910, 210},
-	{931, 200}, {951, 190}, {971, 180}, {992, 170}, {1012, 160},
-	{1032, 150}, {1053, 140}, {1074, 130}, {1095, 120}, {1116, 110},
-	{1137, 100}, {1155, 90}, {1173, 80}, {1191, 70}, {1210, 60},
-	{1228, 50}, {1245, 40}, {1262, 30}, {1279, 20}, {1296, 10},
-	{1313, 0},
-	{1322, -10}, {1331, -20}, {1340, -30}, {1350, -40}, {1359, -50},
-	{1374, -60}, {1389, -70}, {1404, -80}, {1419, -90}, {1434, -100},
-	{1446, -110}, {1458, -120}, {1470, -130}, {1483, -140},{1495, -150},
-	{1504, -160}, {1513, -170}, {1522, -180}, {1532, -190}, {1542, -200},
- };
+#define MODEL_NAME	"SM-G900"
 #endif
 
 static struct cp_thm_adc_table temp_table_batt[] = {
@@ -138,6 +107,8 @@ static struct cp_thm_adc_table temp_table_chg[] = {
 	{3558, -150}, {3654, -160}, {3658, -170}, {3661, -180}, {3664, -190},
 	{3667, -200}
  };
+
+struct qpnp_vadc_chip *ssp_vadc;
 
 static long ssp_temphumidity_ioctl(struct file *file, unsigned int cmd,
 				unsigned long arg)
@@ -272,7 +243,7 @@ static int get_cp_thm_value(struct ssp_data *data)
 	int err = 0;
 	struct qpnp_vadc_result results;
 		mutex_lock(&data->cp_temp_adc_lock);
-	err = qpnp_vadc_read(LR_MUX6_PU2_AMUX_THM3, &results);
+	err = qpnp_vadc_read(ssp_vadc, LR_MUX6_PU1_AMUX_THM3, &results);
 		mutex_unlock(&data->cp_temp_adc_lock);
 		if (err) {
 		pr_err("%s : error reading chn %d, rc = %d\n",
@@ -288,7 +259,7 @@ static int get_cp_thm2_value(struct ssp_data *data)
 	int err = 0;
 	struct qpnp_vadc_result results;
 	mutex_lock(&data->cp_temp_adc_lock);
-	err = qpnp_vadc_read(LR_MUX8_PU2_AMUX_THM4, &results);
+	err = qpnp_vadc_read(ssp_vadc, LR_MUX8_PU1_AMUX_THM4, &results);
 	mutex_unlock(&data->cp_temp_adc_lock);
 	if (err) {
 		pr_err("%s : error reading chn %d, rc = %d\n",
@@ -300,37 +271,10 @@ static int get_cp_thm2_value(struct ssp_data *data)
 
 static int convert_adc_to_temp(struct ssp_data *data, unsigned int adc)
 {
-#if defined(CONFIG_MACH_JF_ATT) || defined(CONFIG_MACH_JF_TMO) || \
-	defined(CONFIG_MACH_JF_EUR) || defined(CONFIG_MACH_JF_SPR) || \
-	defined(CONFIG_MACH_JF_USC) || defined(CONFIG_MACH_JF_VZW)
-	int low = 0;
-	int high = 0;
-	int mid = 0;
-	u8 array_size = ARRAY_SIZE(temp_table_cp);
-
-	if (temp_table_cp == NULL) {
-		/* No voltage vs temperature table, using fake temp */
-		return -990;
-	}
-
-	high = array_size - 1;
-
-	while (low <= high) {
-		mid = (low + high) / 2;
-		if (temp_table_cp[mid].adc > adc)
-			high = mid - 1;
-		else if (temp_table_cp[mid].adc < adc)
-			low = mid + 1;
-		else
-			break;
-	}
-	return temp_table_cp[mid].temperature;
-#else
-{
 	int err = 0;
 	struct qpnp_vadc_result results;
 	mutex_lock(&data->cp_temp_adc_lock);
-	err = qpnp_vadc_read(LR_MUX6_PU2_AMUX_THM3, &results);
+	err = qpnp_vadc_read(ssp_vadc, LR_MUX6_PU1_AMUX_THM3, &results);
 	mutex_unlock(&data->cp_temp_adc_lock);
 	if (err) {
 		pr_err("%s : error reading chn %d, rc = %d\n",
@@ -340,15 +284,13 @@ static int convert_adc_to_temp(struct ssp_data *data, unsigned int adc)
 
 	return results.physical * 10;
 }
-#endif
-}
 
 static int convert_adc_to_temp2(struct ssp_data *data, unsigned int adc)
 {
 	int err = 0;
 	struct qpnp_vadc_result results;
 	mutex_lock(&data->cp_temp_adc_lock);
-	err = qpnp_vadc_read(LR_MUX8_PU2_AMUX_THM4, &results);
+	err = qpnp_vadc_read(ssp_vadc, LR_MUX8_PU1_AMUX_THM4, &results);
 	mutex_unlock(&data->cp_temp_adc_lock);
 	if (err) {
 		pr_err("%s : error reading chn %d, rc = %d\n",
@@ -521,14 +463,23 @@ static ssize_t hub_batt_adc_show(struct device *dev,
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 	static s16 prev_adc = 1865;
-	s16 adc = get_hub_adc(data, ADC_BATT);
+	s16 adc;
 
-	if (adc >= 0)
+	if (data->bSspShutdown == true){
+		adc = 0;
+		goto exit;
+	}
+
+	adc = get_hub_adc(data, ADC_BATT);
+
+	if (adc > 0)
 		prev_adc = adc;
-	else adc = prev_adc;
+	else
+		adc = prev_adc;
 
 	pr_info("[SSP]: %s: adc %d\n", __func__, adc);
 
+exit:
 	return sprintf(buf, "%d\n", adc);
 }
 
@@ -537,14 +488,23 @@ static ssize_t hub_chg_adc_show(struct device *dev,
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 	static s16 prev_adc = 1630;
-	s16 adc = get_hub_adc(data, ADC_CHG);
+	s16 adc;
 
-	if (adc >= 0)
+	if (data->bSspShutdown == true){
+		adc = 0;
+		goto exit;
+	}
+
+	adc = get_hub_adc(data, ADC_CHG);
+
+	if (adc > 0)
 		prev_adc = adc;
-	else adc = prev_adc;
+	else
+		adc = prev_adc;
 
 	pr_info("[SSP]: %s: adc %d\n", __func__, adc);
 
+exit:
 	return sprintf(buf, "%d\n", adc);
 }
 
@@ -703,6 +663,15 @@ void initialize_temphumidity_factorytest(struct ssp_data *data)
 	if (ret < 0) {
 		pr_err("register temphumidity misc device err(%d)", ret);
 	}
+
+	ssp_vadc = qpnp_get_vadc(&data->spi->dev, "temphumidity_sensor");
+
+	if (IS_ERR(ssp_vadc)) {
+		ret = PTR_ERR(ssp_vadc);
+		if (ret != -EPROBE_DEFER)
+			pr_err("%s: Fail to get vadc %d\n", __func__, ret);
+	}
+
 }
 
 void remove_temphumidity_factorytest(struct ssp_data *data)
