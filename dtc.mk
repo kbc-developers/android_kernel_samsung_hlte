@@ -37,15 +37,15 @@ endif
 
 ifeq ("$(H_PROJECT)", "y")
 	ifeq ("$(LOCALE_JPN)" , "y")
-		DTS_FILES = $(wildcard arch/arm/boot/dts/msm8974-sec-hltejpn*.dts)
+		DTS_FILES = $(wildcard arch/arm/boot/dts/msm8974/msm8974-sec-hltejpn*.dts)
 	else
 		ifeq "$(LOCALE_KOR)" "y"
-			DTS_FILES = $(wildcard ./arch/arm/boot/dts/$(DTS_NAME)-sec-hltekor*.dts)
+			DTS_FILES = $(wildcard ./arch/arm/boot/dts/msm8974/$(DTS_NAME)-sec-hltekor*.dts)
 		else
 			ifeq "$(LOCALE_CHN_DUOS)" "y"
-				DTS_FILES = $(wildcard ./arch/arm/boot/dts/$(DTS_NAME)-sec-h3gchnduos*.dts)
+				DTS_FILES = $(wildcard ./arch/arm/boot/dts/msm8974/$(DTS_NAME)-sec-h3gchnduos*.dts)
 			else
-				DTS_FILES = $(wildcard ./arch/arm/boot/dts/$(DTS_NAME)-sec-hlte-*.dts)
+				DTS_FILES = $(wildcard ./arch/arm/boot/dts/msm8974/$(DTS_NAME)-sec-hlte-*.dts)
 			endif
 		endif
 	endif
@@ -165,7 +165,7 @@ endif
 
 PHONY += kernel_config
 kernel_config: $(KERNEL_OUT)
-	$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=arm CROSS_COMPILE=arm-eabi- msm8974_sec_defconfig VARIANT_DEFCONFIG=msm8974_sec_hltedcm_defconfig SELINUX_DEFCONFIG=selinux_defconfig SELINUX_LOG_DEFCONFIG=selinux_log_defconfig TIMA_DEFCONFIG=tima_defconfig
+	$(MAKE) O=$(KERNEL_OUT) ARCH=arm CROSS_COMPILE=arm-eabi- msm8974_sec_defconfig VARIANT_DEFCONFIG=msm8974_sec_hlte_dcm_defconfig SELINUX_DEFCONFIG=selinux_defconfig SELINUX_LOG_DEFCONFIG=selinux_log_defconfig TIMA_DEFCONFIG=tima_defconfig
 
 PHONY += kernel_config_kdi
 kernel_config_kdi: $(KERNEL_OUT)
