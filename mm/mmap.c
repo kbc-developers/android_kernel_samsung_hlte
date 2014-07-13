@@ -37,6 +37,9 @@
 #include <asm/mmu_context.h>
 
 #include "internal.h"
+#ifdef CONFIG_SDCARD_FS
+#include "../fs/sdcardfs/sdcardfs.h"
+#endif
 
 #ifndef arch_mmap_check
 #define arch_mmap_check(addr, len, flags)	(0)
@@ -133,7 +136,7 @@ int __vm_enough_memory(struct mm_struct *mm, long pages, int cap_sys_admin)
 		 */
 		free -= global_page_state(NR_SHMEM);
 
-		free += nr_swap_pages;
+		free += get_nr_swap_pages();
 
 		/*
 		 * Any slabs which are created with the
@@ -963,6 +966,11 @@ static unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	int error;
 	unsigned long reqprot = prot;
 
+#ifdef CONFIG_SDCARD_FS
+	if (file && (file->f_path.mnt->mnt_sb->s_magic == SDCARDFS_SUPER_MAGIC))
+		file = sdcardfs_lower_file(file);
+#endif
+
 	/*
 	 * Does the application expect PROT_READ to imply PROT_EXEC?
 	 *
@@ -1363,7 +1371,6 @@ munmap_back:
 		char *tmp;
 		char *pathname;
 		struct path path;
-		unsigned long cmd_id = 0x3f830221;
 
 		path = file->f_path;
 		path_get(&file->f_path);
@@ -1383,20 +1390,13 @@ munmap_back:
 			return PTR_ERR(pathname);
 		}
 		
-		if ((strstr(pathname, "dalvik-heap") != NULL) || (strstr(pathname, "dalvik-bitmap") != NULL)){
-			printk("PROC %s\tFILE %s\tSTART %lx\tLEN %lx\n", current->comm, pathname, addr, len);
-			__asm__ __volatile__ (    
-#if __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
-        				".arch_extension sec\n"
-#endif	
-					"stmfd  sp!,{r0-r3, r11}\n"
-					"mov    r11, r0\n"
-					"mov    r0, %0\n" //The first parameter is cmd id
-					"mov    r1, %1\n" //second is address
-					"mov    r2, %2\n" //third  is len
-					"smc    #1\n"
-					"ldmfd	sp!, {r0-r3, r11}\n"
-					::"r"(cmd_id), "r"(addr), "r"(len):"r0","r1","r2","r11","cc");
+		if (strstr(pathname, "dalvik-heap") != NULL 
+				|| strstr(pathname, "dalvik-bitmap") != NULL
+				|| strstr(pathname, "dalvik-LinearAlloc") != NULL 
+				|| strstr(pathname, "dalvik-mark-stack") != NULL
+				|| strstr(pathname, "dalvik-card-table") != NULL) {
+			//printk("PROC %s\tFILE %s\tSTART %lx\tLEN %lx\n", current->comm, pathname, addr, len);
+			tima_send_cmd2(addr, len, 0x3f830221);
 		}
 
 		/* do something here with pathname */

@@ -14,10 +14,14 @@
 #define pr_fmt(fmt) "%s:%d " fmt, __func__, __LINE__
 
 #include <linux/module.h>
+
+#if defined(CONFIG_LEDS_MAX77803)
+#include <linux/gpio.h>
+#endif
 // Implementation KTD2692 flashIC
-#if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_LT03EUR)\
-	|| defined(CONFIG_MACH_LT03SKT)	|| defined(CONFIG_MACH_LT03KTT)\
-	|| defined(CONFIG_MACH_LT03LGT)
+#if defined(CONFIG_MACH_VIENNA_LTE) || defined(CONFIG_MACH_PICASSO)\
+	|| defined(CONFIG_MACH_MONDRIAN) || defined(CONFIG_MACH_V2_LTE)
+
 #include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/ctype.h>
@@ -41,10 +45,13 @@
 
 static struct msm_led_flash_ctrl_t fctrl;
 
+#if defined(CONFIG_LEDS_MAX77803)
+extern int led_flash_en;
+extern int led_torch_en;
+#endif
 // Implementation KTD2692 flashIC
-#if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_LT03EUR)\
-	|| defined(CONFIG_MACH_LT03SKT)	|| defined(CONFIG_MACH_LT03KTT)\
-	|| defined(CONFIG_MACH_LT03LGT)
+#if defined(CONFIG_MACH_VIENNA_LTE) || defined(CONFIG_MACH_PICASSO) \
+	|| defined(CONFIG_MACH_MONDRIAN) || defined(CONFIG_MACH_V2_LTE)
 extern unsigned int system_rev;
 extern int led_flash_en;
 extern int led_torch_en;
@@ -56,12 +63,13 @@ struct device *flash_dev;
 /* KTD2692 : command time delay(us) */
 #define T_DS		15	//	12
 #define T_EOD_H		1000 //	350
-#define T_EOD_L		4
-#define T_H_LB		4
+#define T_EOD_L		10
+#define T_H_LB		10
 #define T_L_LB		3*T_H_LB
-#define T_L_HB		4
-#define T_H_HB		3*T_L_HB
+#define T_L_HB		10
+#define T_H_HB		7*T_L_HB
 #define T_RESET		800	//	700
+#define T_RESET2	1000
 /* KTD2692 : command address(A2:A0) */
 #define LVP_SETTING		0x0 << 5
 #define FLASH_TIMEOUT	0x1 << 5
@@ -77,6 +85,7 @@ void KTD2692_set_flash(unsigned int ctl_cmd)
 	int j = 0;
 	int k = 0;
 	unsigned long flags;
+	unsigned int ctl_cmd_buf;
 	spin_lock_irqsave(&flash_ctrl_lock, flags);
 	if ( MODE_CONTROL == (MODE_CONTROL & ctl_cmd) )
 		k = 8;
@@ -87,19 +96,18 @@ void KTD2692_set_flash(unsigned int ctl_cmd)
 		gpio_set_value(led_torch_en, 1);
 		udelay(T_DS);
 
+		ctl_cmd_buf = ctl_cmd;
 		for(i = 0; i < 8; i++) {
-			if(ctl_cmd & 0x80) { /* set bit to 1 */
+			if(ctl_cmd_buf & 0x80) { /* set bit to 1 */
 				gpio_set_value(led_torch_en, 0);
-				udelay(T_L_HB);
 				gpio_set_value(led_torch_en, 1);
 				udelay(T_H_HB);
 			} else { /* set bit to 0 */
 				gpio_set_value(led_torch_en, 0);
 				udelay(T_L_LB);
 				gpio_set_value(led_torch_en, 1);
-				udelay(T_H_LB);
 			}
-			ctl_cmd = ctl_cmd << 1;
+			ctl_cmd_buf = ctl_cmd_buf << 1;
 		}
 
 		gpio_set_value(led_torch_en, 0);
@@ -123,7 +131,9 @@ static ssize_t ktd2692_flash(struct device *dev,
 	if (count == size) {
 		ret = count;
 #if defined(CONFIG_MACH_LT03EUR) || defined(CONFIG_MACH_LT03SKT)\
-	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)
+	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)\
+		|| defined(CONFIG_MACH_PICASSO)|| defined(CONFIG_MACH_MONDRIAN)\
+		|| defined(CONFIG_MACH_VIENNA_LTE) || defined(CONFIG_MACH_V2_LTE)
 		if (state == 0) {
 			KTD2692_set_flash(MODE_CONTROL | 0x00);
 			gpio_set_value(led_torch_en, 0);
@@ -184,11 +194,13 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 	void *data)
 {
 	int rc = 0;
+#if defined(CONFIG_LEDS_MAX77803)
+	int ret;
+#endif
 	struct msm_camera_led_cfg_t *cfg = (struct msm_camera_led_cfg_t *)data;
 	CDBG("called led_state %d\n", cfg->cfgtype);
-#if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_LT03EUR)\
-	|| defined(CONFIG_MACH_LT03SKT)	|| defined(CONFIG_MACH_LT03KTT)\
-	|| defined(CONFIG_MACH_LT03LGT)
+#if defined(CONFIG_MACH_VIENNA_LTE) || defined(CONFIG_MACH_PICASSO)\
+	|| defined(CONFIG_MACH_MONDRIAN) || defined(CONFIG_MACH_V2_LTE)
 	if (is_torch_enabled == true) {
 		return rc;
 	}
@@ -216,7 +228,23 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		break;
 
 	case MSM_CAMERA_LED_INIT:
+		break;
 	case MSM_CAMERA_LED_RELEASE:
+		pr_err("CAM Flash OFF & release");
+		ret = gpio_request(led_flash_en, "max77803_flash_en");
+		if (ret)
+			pr_err("can't get max77803_flash_en");
+		else {
+			gpio_direction_output(led_flash_en, 0);
+			gpio_free(led_flash_en);
+		}
+		ret = gpio_request(led_torch_en, "max77803_torch_en");
+		if (ret)
+			pr_err("can't get max77803_torch_en");
+		else {
+			gpio_direction_output(led_torch_en, 0);
+			gpio_free(led_torch_en);
+		}	
 		break;
 
 	default:
@@ -224,21 +252,30 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		break;
 	}
 // Implementation KTD2692 flashIC
-#elif defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_LT03EUR)\
-	|| defined(CONFIG_MACH_LT03SKT)	|| defined(CONFIG_MACH_LT03KTT)\
-	|| defined(CONFIG_MACH_LT03LGT)
+#elif defined(CONFIG_MACH_VIENNA_LTE) || defined(CONFIG_MACH_PICASSO)\
+	|| defined(CONFIG_MACH_MONDRIAN) || defined(CONFIG_MACH_V2_LTE)
 	switch (cfg->cfgtype) {
 #if defined(CONFIG_MACH_LT03EUR) || defined(CONFIG_MACH_LT03SKT)\
-	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)
+	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)\
+	    || defined(CONFIG_MACH_PICASSO)|| defined(CONFIG_MACH_MONDRIAN)\
+	    || defined(CONFIG_MACH_V2_LTE)
 	case MSM_CAMERA_LED_OFF:
 		KTD2692_set_flash(MODE_CONTROL | 0x00);
 		break;
 	case MSM_CAMERA_LED_LOW:
+		gpio_set_value(led_torch_en, 0);
+		udelay(T_RESET);
+		gpio_set_value(led_torch_en, 1);
+		udelay(T_RESET2);
 		KTD2692_set_flash(LVP_SETTING | 0x00);
 		KTD2692_set_flash(MOVIE_CURRENT | 0x04);
 		KTD2692_set_flash(MODE_CONTROL | 0x01);
 		break;
 	case MSM_CAMERA_LED_HIGH:
+		gpio_set_value(led_torch_en, 0);
+		udelay(T_RESET);
+		gpio_set_value(led_torch_en, 1);
+		udelay(T_RESET2);
 		KTD2692_set_flash(LVP_SETTING | 0x00);
 		KTD2692_set_flash(FLASH_CURRENT | 0x0F);
 		KTD2692_set_flash(MODE_CONTROL | 0x02);
@@ -409,9 +446,8 @@ static int32_t msm_led_trigger_probe(struct platform_device *pdev)
 	}
 	rc = msm_led_flash_create_v4lsubdev(pdev, &fctrl);
 // Implementation KTD2692 flashIC
-#if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_LT03EUR)\
-	|| defined(CONFIG_MACH_LT03SKT)	|| defined(CONFIG_MACH_LT03KTT)\
-	|| defined(CONFIG_MACH_LT03LGT)
+#if defined(CONFIG_MACH_VIENNA_LTE) || defined(CONFIG_MACH_PICASSO)\
+	|| defined(CONFIG_MACH_MONDRIAN) || defined(CONFIG_MACH_V2_LTE)
 	if (!IS_ERR(camera_class)) {
 		flash_dev = device_create(camera_class, NULL, 0, NULL, "flash");
 		if (flash_dev < 0)

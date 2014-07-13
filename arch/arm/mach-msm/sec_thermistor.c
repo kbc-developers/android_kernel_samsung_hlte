@@ -29,6 +29,12 @@
 //#endif
 #endif
 
+#if defined(CONFIG_ARCH_MSM8974PRO)
+#define MSM_THERM_CH	LR_MUX4_PU1_AMUX_THM1
+#else
+#define MSM_THERM_CH	LR_MUX4_PU2_AMUX_THM1
+#endif
+
 struct sec_therm_info {
 	struct device *dev;
 	struct sec_therm_platform_data *pdata;
@@ -108,7 +114,7 @@ static ssize_t sec_therm_show_temperature_flash_led(struct device *dev,
 	struct sec_therm_info *info = dev_get_drvdata(dev);
 
 	adc = sec_therm_get_adc_data_flash_led(info);
-	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) 
+	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
 	temper = convert_adc_flash_to_temper(info, adc);
 	#else
 	temper = convert_adc_to_temper(info, adc);
@@ -169,17 +175,20 @@ static int sec_therm_get_adc_data(struct sec_therm_info *info)
 
 	for (i = 0; i < ADC_SAMPLING_CNT; i++) {
 
-		rc = qpnp_vadc_read(LR_MUX4_PU2_AMUX_THM1, &results);
+		rc = qpnp_vadc_read(NULL, MSM_THERM_CH , &results);
 
 		if (rc) {
 			pr_err("error reading AMUX %d, rc = %d\n",
-						LR_MUX4_PU2_AMUX_THM1, rc);
+						MSM_THERM_CH, rc);
 			goto err;
 		}
 		adc_data = results.adc_code;
 
-		pr_err("reading LR_MUX4_PU2_AMUX_THM1 [rc = %d] [adc_code = %d]\n",
+		if (i == 0) {
+			pr_err("reading MSM_THERM_CH [rc = %d] [adc_code = %d]\n",
 									rc,results.adc_code);
+		}
+
 		if (i != 0) {
 			if (adc_data > adc_max)
 				adc_max = adc_data;
@@ -213,7 +222,7 @@ static int sec_therm_get_adc_data_flash_led(struct sec_therm_info *info)
 
 	for (i = 0; i < ADC_SAMPLING_CNT; i++) {
 
-		rc = qpnp_vadc_read(LR_MUX9_PU2_AMUX_THM5, &results);
+		rc = qpnp_vadc_read(NULL, LR_MUX9_PU2_AMUX_THM5, &results);
 
 		if (rc) {
 			pr_err("error reading AMUX %d, rc = %d\n",
@@ -244,7 +253,7 @@ err:
 
 }
 
-#ifndef CONFIG_MACH_JS01LTEDCM
+#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
 static int convert_adc_flash_to_temper(struct sec_therm_info *info, unsigned int adc)
 {
 	int low = 0;
@@ -282,7 +291,7 @@ static int convert_adc_flash_to_temper(struct sec_therm_info *info, unsigned int
 
 	temp = info->pdata->adc_table_flash[high].temperature;
 
-	temp2 = (info->pdata->adc_table_flash[low].temperature - 
+	temp2 = (info->pdata->adc_table_flash[low].temperature -
 			info->pdata->adc_table_flash[high].temperature) *
 			(adc - info->pdata->adc_table_flash[high].adc);
 
@@ -334,7 +343,7 @@ static int convert_adc_to_temper(struct sec_therm_info *info, unsigned int adc)
 
 	temp = info->pdata->adc_table[high].temperature;
 
-	temp2 = (info->pdata->adc_table[low].temperature - 
+	temp2 = (info->pdata->adc_table[low].temperature -
 			info->pdata->adc_table[high].temperature) *
 			(adc - info->pdata->adc_table[high].adc);
 
@@ -470,6 +479,8 @@ static __devinit int sec_therm_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(info->dev,
 			"failed to create sysfs attribute group\n");
+
+		kfree(info);
 	}
 
 	if (!(pdata->no_polling)) {

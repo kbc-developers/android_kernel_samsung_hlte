@@ -14,9 +14,6 @@
  *
  */
 
-#include <linux/fs.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
 #include <linux/mm.h>
 #include <linux/mm_types.h>
 #include <linux/bootmem.h>
@@ -46,7 +43,6 @@
 /* fixme */
 #include <asm/tlbflush.h>
 #include <../../mm/mm.h>
-#include <linux/fmem.h>
 
 #if defined(CONFIG_ARCH_MSM7X27)
 static void *strongly_ordered_page;
@@ -254,16 +250,6 @@ void store_ttbr0(void)
 		: "=r" (msm_ttbr0));
 }
 
-int request_fmem_c_region(void *unused)
-{
-	return fmem_set_state(FMEM_C_STATE);
-}
-
-int release_fmem_c_region(void *unused)
-{
-	return fmem_set_state(FMEM_T_STATE);
-}
-
 static char * const memtype_names[] = {
 	[MEMTYPE_SMI_KERNEL] = "SMI_KERNEL",
 	[MEMTYPE_SMI]	= "SMI",
@@ -308,10 +294,8 @@ static int __init check_for_compat(unsigned long node)
 
 	return 0;
 }
-extern int poweroff_charging, recovery_mode;
 
-static unsigned long reserved_size;
-static unsigned long removed_size;
+extern int boot_mode_recovery, boot_mode_lpm;
 
 int __init dt_scan_for_memory_reserve(unsigned long node, const char *uname,
 		int depth, void *data)
@@ -326,6 +310,8 @@ int __init dt_scan_for_memory_reserve(unsigned long node, const char *uname,
 	unsigned long memory_reserve_prop_length;
 	unsigned int memory_size;
 	unsigned int memory_start;
+	unsigned int num_holes = 0;
+	int i;
 	int ret;
 
 	memory_name_prop = of_get_flat_dt_prop(node,
@@ -355,17 +341,18 @@ int __init dt_scan_for_memory_reserve(unsigned long node, const char *uname,
 		memory_size_prop = of_get_flat_dt_prop(node,
 						"qcom,memory-reservation-size",
 						&memory_size_prop_length);
+
 		/*
 		 * hack to reserve memory for display while booting up in to
 		 * LPM and recovery mode.
 		 */
-		if (poweroff_charging || recovery_mode) {
+		if (boot_mode_lpm || boot_mode_recovery) {
 			/*
 			 *  This field is only being used by mdp driver
 			 */
 			temp_memsize_prop = of_get_flat_dt_prop(node,
-									"qcom,memory-alt-reservation-size",
-									&memory_size_prop_length);
+					"qcom,memory-alt-reservation-size",
+						&memory_size_prop_length);
 			if (temp_memsize_prop)
 				memory_size_prop = temp_memsize_prop;
 		}
@@ -390,22 +377,26 @@ int __init dt_scan_for_memory_reserve(unsigned long node, const char *uname,
 mem_remove:
 
 	if (memory_remove_prop) {
-		if (memory_remove_prop_length != (2*sizeof(unsigned int))) {
+		if (!memory_remove_prop_length || (memory_remove_prop_length %
+				(2 * sizeof(unsigned int)) != 0)) {
 			WARN(1, "Memory remove malformed\n");
 			goto mem_reserve;
 		}
 
-		memory_start = be32_to_cpu(memory_remove_prop[0]);
-		memory_size = be32_to_cpu(memory_remove_prop[1]);
+		num_holes = memory_remove_prop_length /
+					(2 * sizeof(unsigned int));
 
-		ret = memblock_remove(memory_start, memory_size);
-		if (ret)
-			WARN(1, "Failed to remove memory %x-%x\n",
+		for (i = 0; i < (num_holes * 2); i += 2) {
+			memory_start = be32_to_cpu(memory_remove_prop[i]);
+			memory_size = be32_to_cpu(memory_remove_prop[i+1]);
+
+			ret = memblock_remove(memory_start, memory_size);
+			if (ret)
+				WARN(1, "Failed to remove memory %x-%x\n",
 				memory_start, memory_start+memory_size);
-		else {
-			removed_size += memory_size;
-			pr_info("Node %s removed memory %x-%x(total %lx)\n", uname,
-				memory_start, memory_start+memory_size, removed_size);
+			else
+				pr_info("Node %s removed memory %x-%x\n", uname,
+				memory_start, memory_start+memory_size);
 		}
 	}
 
@@ -424,11 +415,9 @@ mem_reserve:
 		if (ret)
 			WARN(1, "Failed to reserve memory %x-%x\n",
 				memory_start, memory_start+memory_size);
-		else {
-			reserved_size += memory_size;
-			pr_info("Node %s memblock_reserve memory %x-%x(total %lx)\n",
-				uname, memory_start, memory_start+memory_size, reserved_size);
-		}
+		else
+			pr_info("Node %s memblock_reserve memory %x-%x\n",
+				uname, memory_start, memory_start+memory_size);
 	}
 
 out:
@@ -464,6 +453,8 @@ int __init dt_scan_for_memory_hole(unsigned long node, const char *uname,
 	unsigned long memory_remove_prop_length;
 	unsigned long hole_start;
 	unsigned long hole_size;
+	unsigned int num_holes = 0;
+	int i = 0;
 
 	memory_remove_prop = of_get_flat_dt_prop(node,
 						"qcom,memblock-remove",
@@ -477,15 +468,21 @@ int __init dt_scan_for_memory_hole(unsigned long node, const char *uname,
 	}
 
 	if (memory_remove_prop) {
-		if (memory_remove_prop_length != (2*sizeof(unsigned int))) {
+		if (!memory_remove_prop_length || (memory_remove_prop_length %
+			(2 * sizeof(unsigned int)) != 0)) {
 			WARN(1, "Memory remove malformed\n");
 			goto out;
 		}
 
-		hole_start = be32_to_cpu(memory_remove_prop[0]);
-		hole_size = be32_to_cpu(memory_remove_prop[1]);
+		num_holes = memory_remove_prop_length /
+					(2 * sizeof(unsigned int));
 
-		adjust_meminfo(hole_start, hole_size);
+		for (i = 0; i < (num_holes * 2); i += 2) {
+			hole_start = be32_to_cpu(memory_remove_prop[i]);
+			hole_size = be32_to_cpu(memory_remove_prop[i+1]);
+
+			adjust_meminfo(hole_start, hole_size);
+		}
 	}
 
 out:
@@ -529,42 +526,6 @@ unsigned long get_ddr_size(void)
 
 	return ret;
 }
-
-static unsigned long get_removed_size(void)
-{
-	return removed_size;
-
-}
-
-static unsigned long get_reserved_size(void)
-{
-	return reserved_size;
-}
-
-static int sec_ddrsize_proc_show(struct seq_file *m, void *v)
-{
-	unsigned int total_size = get_ddr_size()+get_removed_size()+get_reserved_size();
-	seq_printf(m, "%d\n", total_size >> (20));
-	return 0;
-}
-
-static int sec_ddrsize_proc_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, sec_ddrsize_proc_show, NULL);
-}
-
-static const struct file_operations sec_ddrsize_proc_fops = {
-	.open	= sec_ddrsize_proc_open,
-	.read	= seq_read,
-	.llseek	= seq_lseek,
-	.release = single_release,
-};
-
-void samsung_proc_ddrsize_init(void)
-{
-	proc_create("sec_ddrsize", 0, NULL, &sec_ddrsize_proc_fops);
-}
-EXPORT_SYMBOL(samsung_proc_ddrsize_init);
 
 /* Provide a string that anonymous device tree allocations (those not
  * directly associated with any driver) can use for their "compatible"

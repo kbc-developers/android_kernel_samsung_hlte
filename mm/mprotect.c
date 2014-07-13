@@ -133,7 +133,7 @@ static void change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 		 */
 		if (tima_l2group_buffer_index) {
 			timal2group_set_pte_commit(tima_l2group_buffer,
-							tima_l2group_buffer_index);
+							tima_l2group_buffer_index, (void*)pte);
 		} 
 		free_pages((unsigned long) tima_l2group_buffer, 1);
 	}

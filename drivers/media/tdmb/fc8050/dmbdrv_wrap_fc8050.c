@@ -118,8 +118,7 @@ void dmb_drv_isr()
 	bbm_com_isr(NULL);
 }
 
-
-unsigned char dmb_drv_init(void)
+unsigned char dmb_drv_init(unsigned long param)
 {
 #ifdef FEATURE_INTERFACE_TEST_MODE
 	int i;
@@ -130,10 +129,10 @@ unsigned char dmb_drv_init(void)
 #endif
 
 #ifdef CONFIG_TDMB_SPI
-	if (bbm_com_hostif_select(NULL, BBM_SPI))
+	if (bbm_com_hostif_select(NULL, BBM_SPI, param))
 		return TDMB_FAIL;
 #elif defined(CONFIG_TDMB_EBI)
-	if (bbm_com_hostif_select(NULL, BBM_PPI))
+	if (bbm_com_hostif_select(NULL, BBM_PPI, param))
 		return TDMB_FAIL;
 #endif
 

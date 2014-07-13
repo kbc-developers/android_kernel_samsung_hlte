@@ -30,6 +30,7 @@ struct tlog {
 	u32 data2;
 	u32 data3;
 	u32 data4;
+	u32 data5;
 };
 
 struct klog {
@@ -41,7 +42,7 @@ struct klog {
 
 spinlock_t xlock;
 
-void xlog(char *name, u32 data0, u32 data1, u32 data2, u32 data3, u32 data4)
+void xlog(char *name, u32 data0, u32 data1, u32 data2, u32 data3, u32 data4, u32 data5)
 {
 	unsigned long flags;
 	struct tlog *log;
@@ -64,6 +65,7 @@ void xlog(char *name, u32 data0, u32 data1, u32 data2, u32 data3, u32 data4)
 	log->data2 = data2;
 	log->data3 = data3;
 	log->data4 = data4;
+	log->data5 = data5;
 	llist.last = llist.first;
 	llist.first++;
 	llist.first %= XENTRY;
@@ -81,7 +83,7 @@ void xlog_dump(void)
 	i = llist.first;
 	for (n = 0 ; n < XENTRY; n++) {
 		log = &llist.logs[i++];
-		printk("%s => %llu : %x %x %x %x %x\n", log->name, log->tick, (int)log->data0, (int)log->data1, (int)log->data2, (int)log->data3, (int)log->data4);
+		printk("%s => %llu : %x %x %x %x %x %x\n", log->name, log->tick, (int)log->data0, (int)log->data1, (int)log->data2, (int)log->data3, (int)log->data4, (int)log->data5);
 		i %= XENTRY;
 	}
 	spin_unlock_irqrestore(&xlock, flags);

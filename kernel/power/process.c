@@ -27,7 +27,8 @@
 
 static int try_to_freeze_tasks(bool user_only)
 {
-	struct task_struct *g, *p, *q;
+	struct task_struct *g, *p;
+	struct task_struct *q = NULL;
 	unsigned long end_time;
 	unsigned int todo;
 	bool wq_busy = false;
@@ -47,7 +48,6 @@ static int try_to_freeze_tasks(bool user_only)
 		todo = 0;
 		read_lock(&tasklist_lock);
 		do_each_thread(g, p) {
-			cpu_relax();
 			if (p == current || !freeze_task(p))
 				continue;
 

@@ -45,9 +45,10 @@
 /******************************************************************************
  * log
  ******************************************************************************/
+/*
 #define FELICA_DEBUG_READ_DATA
 #define FELICA_DEBUG
-
+*/
 #define FELICA_UICC_INIT_LOG
 
 
@@ -59,9 +60,7 @@
 #define P2P_FPGA_ALWAYS_ON		// FPGA clock always enable for jmodel.
 #endif
 
-#ifdef CONFIG_NFC_FELICA
 #define FELICA_UICC_FUNCTION	// If SWP is present, must be defined.
-#endif
 #define F_WAKE_LOCK				// If wake lock is needed, can be defined.
 
 
@@ -352,14 +351,12 @@ static unsigned int felica_int_poll_poll(struct file *file, poll_table *wait);
 #define SET_FELICA_UID_DIAG	_IOW(FELICA_MAGIC, 4, void *)
 
 /* function prototype */
-#ifndef CONFIG_FELICA_NO_SECURE
 static void felica_uid_init(void);
 static void felica_uid_exit(void);
 static int felica_uid_open(struct inode *inode, struct file *file);
 static int felica_uid_close(struct inode *inode, struct file *file);
 static long felica_uid_ioctl(struct file *file, unsigned int cmd, \
 						unsigned long arg);
-#endif
 /******************************************************************************
  * /dev/felica_ant
  ******************************************************************************/
@@ -658,9 +655,29 @@ static ssize_t uicc_read(struct file *file, char __user *buf,\
 static long uicc_ioctl(struct file *file, unsigned int cmd, \
 						unsigned long arg);
 
-#endif /* CONFIG_NFC_FELICA */
 #define FELICA_GPIO_DRIVER_NAME "felica_gpio_table"
 
+/******************************************************************************
+ * /dev/snfc_cen
+ ******************************************************************************/
 
+/* constant definition */
+#define SNFC_CEN_NAME					"snfc_cen"
+#define SNFC_CEN_DATA_LEN				1
+#define SNFC_CONTROL_LOCK_MASK			1
+#define SNFC_CEN_LOCK					0
+#define SNFC_CEN_UNLOCK					1
+#define SNFC_CEN_SET_LOCK				0x80
+#define SNFC_CEN_SET_UNLOCK				0x81
+
+/* function prototype */
+static void snfc_cen_init(void);
+static void snfc_cen_exit(void);
+static int snfc_cen_open(struct inode *inode, struct file *file);
+static int snfc_cen_close(struct inode *inode, struct file *file);
+static ssize_t snfc_cen_read(struct file *file, char __user *buf,\
+				size_t len, loff_t *ppos);
+
+#endif /* CONFIG_NFC_FELICA */
 
 #endif /* _FELICA_H */

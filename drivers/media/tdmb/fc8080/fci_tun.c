@@ -24,6 +24,7 @@
 	----------------------------------------------------------------------
 *******************************************************************************/
 
+#include <linux/kernel.h>
 #include "fci_types.h"
 #include "fci_tun.h"
 #include "fci_hpi.h"
@@ -125,18 +126,33 @@ s32 tuner_set_freq(HANDLE handle, u32 freq)
 {
 	s32 res = BBM_NOK;
 	u8 tmp;
-
-	if (tuner == NULL)
+#ifdef FC8080_I2C
+	u16 buf_en = 0;
+#endif
+	if (tuner == NULL) {
+		printk(KERN_DEBUG "TDMB : TUNER NULL ERROR\n");
 		return BBM_NOK;
+	}
+
+#ifdef FC8080_I2C
+	bbm_word_read(handle, BBM_BUF_ENABLE, &buf_en);
+	bbm_word_write(handle, BBM_BUF_ENABLE, buf_en & 0x0ff);
+#endif
 
 	res = tuner->set_freq(handle, tuner_band, freq);
-	if (res != BBM_OK)
+	if (res != BBM_OK) {
+		printk(KERN_DEBUG "TDMB : TUNER res ERROR\n");
 		return BBM_NOK;
+	}
 
 	tmp = (u8) (CLOCK_RATIO / freq);
 	bbm_write(handle, BBM_INV_CARRIER_FREQ, tmp);
 
 	fc8080_reset(handle);
+
+#ifdef FC8080_I2C
+	bbm_word_write(handle, BBM_BUF_ENABLE, buf_en);
+#endif
 
 	return res;
 }
@@ -151,7 +167,7 @@ s32 tuner_select(HANDLE handle, enum product_type product, enum band_type band)
 
 		tuner_ctrl_select(handle, FCI_HPI_TYPE);
 
-		bbm_write(handle, BBM_QDD_COMMAND, 0x44);
+		bbm_write(handle, BBM_QDD_COMMAND, 0xc4);
 		break;
 	default:
 		return BBM_E_TN_SELECT;

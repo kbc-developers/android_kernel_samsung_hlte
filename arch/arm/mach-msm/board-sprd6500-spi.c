@@ -22,11 +22,14 @@
 #include <mach/gpiomux.h>
 
 
-#define GPIO_IPC_MRDY		104
-#define GPIO_IPC_SUB_MRDY	105
-#define GPIO_IPC_SRDY		143
-#define GPIO_IPC_SUB_SRDY	117
-#define GPIO_CP_DUMP_INT	73
+/* These gpios are defined in msm8974pro-mif_kctc-r01.dtsi */
+/*
+#define GPIO_IPC_MRDY		105
+#define GPIO_IPC_SUB_MRDY   106
+#define GPIO_IPC_SRDY		117
+#define GPIO_IPC_SUB_SRDY	104
+#define GPIO_CP_DUMP_INT	119
+*/
 
 
 
@@ -43,31 +46,6 @@ struct ipc_spi_platform_data {
 
 static struct ipc_spi_platform_data spi_modem_data;
 
-#if 0
-struct bcom_mcspi_device_config {
-	unsigned turbo_mode:1;
-	/* Do we want one channel enabled at the same time? */
-	unsigned single_channel:1;
-	};
-
-static struct bcom_mcspi_device_config board_spi_mcspi_config = {
-	.turbo_mode =	1,
-	.single_channel = 1,
-};
-
-static struct spi_board_info modem_if_spi_device[] __initdata = {
-	{
-		.modalias	= "if_spi_driver",
-		.bus_num=2,	// GSCHO
-		.max_speed_hz	= 12000000,	//10800000,
-		.chip_select	= 0,
-		.mode           = SPI_MODE_1,
-		.controller_data = &board_spi_mcspi_config,
-		//.controller_data = (void *) SPI_GPIO_NO_CHIPSELECT,
-		
-	},
-};
-#endif
 
 static struct platform_device spi_modem = {
 	.name = "if_spi_platform_driver",
@@ -77,9 +55,7 @@ static struct platform_device spi_modem = {
 	},
 };
 
-
-
-
+#if 0
 void spi_modem_cfg_gpio(void)
 {
 	int ret;
@@ -90,7 +66,7 @@ void spi_modem_cfg_gpio(void)
 				;
 			}
 	gpio_tlmm_config(GPIO_CFG(GPIO_IPC_MRDY, GPIOMUX_FUNC_GPIO,
-		GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+		GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
 		GPIO_CFG_ENABLE);
 	gpio_set_value(GPIO_IPC_MRDY, 0);
 
@@ -103,7 +79,7 @@ void spi_modem_cfg_gpio(void)
 				;
 			}
 	gpio_tlmm_config(GPIO_CFG(GPIO_IPC_SUB_MRDY, GPIOMUX_FUNC_GPIO,
-		GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+		GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
 		GPIO_CFG_ENABLE);
 	gpio_set_value(GPIO_IPC_SUB_MRDY, 0);
 
@@ -116,7 +92,7 @@ void spi_modem_cfg_gpio(void)
 				;
 			}
 	gpio_tlmm_config(GPIO_CFG(GPIO_IPC_SRDY, GPIOMUX_FUNC_GPIO,
-		GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+		GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_16MA),
 		GPIO_CFG_ENABLE);
 
 
@@ -128,7 +104,7 @@ void spi_modem_cfg_gpio(void)
 				;
 			}
 	gpio_tlmm_config(GPIO_CFG(GPIO_IPC_SUB_SRDY, GPIOMUX_FUNC_GPIO,
-		GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+		GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_16MA),
 		GPIO_CFG_ENABLE);
 
 	spi_modem_data.gpio_ipc_mrdy = GPIO_IPC_MRDY;
@@ -140,11 +116,12 @@ void spi_modem_cfg_gpio(void)
 	pr_info("[SPI] %s done\n", __func__);
 
 }
+#endif
 
 static int __init init_spi(void)
 {
 	pr_info("[SPI] %s\n", __func__);
-	spi_modem_cfg_gpio();
+	//spi_modem_cfg_gpio();
 	platform_device_register(&spi_modem);
 /*
 	spi_register_board_info(modem_if_spi_device,

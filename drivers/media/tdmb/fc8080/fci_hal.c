@@ -78,6 +78,7 @@ static struct interface_port ppiif = {
 	&fc8080_ppi_deinit
 };
 #endif
+#if defined(CONFIG_TDMB_I2C)
 static struct interface_port i2cif = {
 	&fc8080_i2c_init,
 	&fc8080_i2c_byteread,
@@ -91,12 +92,12 @@ static struct interface_port i2cif = {
 	&fc8080_i2c_dataread,
 	&fc8080_i2c_deinit
 };
-
+#endif
 
 static struct interface_port *ifport;
 static u8 hostif_type;
 
-s32 bbm_hostif_select(HANDLE handle, u8 hostif)
+s32 bbm_hostif_select(HANDLE handle, u8 hostif, u32 param)
 {
 	hostif_type = hostif;
 
@@ -106,9 +107,11 @@ s32 bbm_hostif_select(HANDLE handle, u8 hostif)
 		ifport = &spiif;
 		break;
 #endif
+#if defined(CONFIG_TDMB_I2C)
 	case BBM_I2C:
 		ifport = &i2cif;
 		break;
+#endif
 #if defined(CONFIG_TDMB_EBI)
 	case BBM_PPI:
 		ifport = &ppiif;
@@ -118,7 +121,7 @@ s32 bbm_hostif_select(HANDLE handle, u8 hostif)
 		return BBM_E_HOSTIF_SELECT;
 	}
 
-	if (ifport->init(handle, 0, 0))
+	if (ifport->init(handle, (param & 0xffff), ((param >> 16) & 0xffff)))
 		return BBM_E_HOSTIF_INIT;
 
 	return BBM_OK;

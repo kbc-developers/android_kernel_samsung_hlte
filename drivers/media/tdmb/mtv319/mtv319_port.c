@@ -37,6 +37,11 @@
 #endif
 
 #if defined(RTV_IF_SPI)
+static struct spi_device *mtv_spi;
+void mtv319_set_port_if(unsigned long interface)
+{
+	mtv_spi = (struct spi_device *)interface;
+}
 unsigned char mtv319_spi_read(unsigned char page, unsigned char reg)
 {
 	int ret;
@@ -57,7 +62,7 @@ unsigned char mtv319_spi_read(unsigned char page, unsigned char reg)
 	spi_message_init(&msg);
 	spi_message_add_tail(&msg_xfer, &msg);
 
-	ret = spi_sync(tdmb_get_spi_handle(), &msg);
+	ret = spi_sync(mtv_spi, &msg);
 	if (ret) {
 		DPRINTK("error: %d\n", ret);
 		return 0xFF;
@@ -101,7 +106,7 @@ void mtv319_spi_read_burst(unsigned char page, unsigned char reg,
 	spi_message_add_tail(&xfer0, &msg);
 	spi_message_add_tail(&xfer1, &msg);
 
-	ret = spi_sync(tdmb_get_spi_handle(), &msg);
+	ret = spi_sync(mtv_spi, &msg);
 	if (ret) {
 		DPRINTK("error: %d\n", ret);
 		return;
@@ -130,7 +135,7 @@ void mtv319_spi_write(unsigned char page, unsigned char reg, unsigned char val)
 	spi_message_init(&msg);
 	spi_message_add_tail(&msg_xfer, &msg);
 
-	ret = spi_sync(tdmb_get_spi_handle(), &msg);
+	ret = spi_sync(mtv_spi, &msg);
 	if (ret)
 		DPRINTK("error: %d\n", ret);
 }
@@ -152,13 +157,8 @@ void mtv319_spi_recover(unsigned char *buf, unsigned int intr_size)
 	spi_message_init(&msg);
 	spi_message_add_tail(&msg_xfer, &msg);
 
-	ret = spi_sync(tdmb_get_spi_handle(), &msg);
+	ret = spi_sync(mtv_spi, &msg);
 	if (ret)
 		DPRINTK("error: %d\n", ret);
 }
 #endif
-
-
-
-
-

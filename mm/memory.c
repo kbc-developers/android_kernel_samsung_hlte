@@ -58,6 +58,7 @@
 #include <linux/swapops.h>
 #include <linux/elf.h>
 #include <linux/gfp.h>
+#include <linux/bug.h>
 
 #include <asm/io.h>
 #include <asm/pgalloc.h>
@@ -153,9 +154,11 @@ static void add_mm_counter_fast(struct mm_struct *mm, int member, int val)
 
 /* sync counter once per 64 page faults */
 #define TASK_RSS_EVENTS_THRESH	(64)
+
 #if defined(CONFIG_VMWARE_MVP)
 EXPORT_SYMBOL_GPL(get_mm_counter);
 #endif
+
 static void check_sync_rss_stat(struct task_struct *task)
 {
 	if (unlikely(task != current))
@@ -708,6 +711,9 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
 	if (vma->vm_file && vma->vm_file->f_op)
 		print_symbol(KERN_ALERT "vma->vm_file->f_op->mmap: %s\n",
 				(unsigned long)vma->vm_file->f_op->mmap);
+
+	BUG_ON(PANIC_CORRUPTION);
+
 	dump_stack();
 	add_taint(TAINT_BAD_PAGE);
 }
@@ -966,7 +972,7 @@ int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
         unsigned long tima_l2group_flag = 0;
         tima_l2group_entry_t *tima_l2group_buffer = NULL;
-        unsigned long tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
+        unsigned long tima_l2group_numb_entries;
         unsigned long tima_l2group_buffer_index = 0;
 #endif
 
@@ -983,6 +989,11 @@ again:
 	orig_dst_pte = dst_pte;
 	arch_enter_lazy_mmu_mode();
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
+	/* Initialize all L2_GROUP variables */
+	tima_l2group_flag= 0;
+	tima_l2group_buffer = NULL;
+	tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
+	tima_l2group_buffer_index = 0;
         /*
          * Lazy mmu mode for tima:
          * 1-Define a memory area to hold the PTEs to be changed
@@ -1062,7 +1073,7 @@ again:
 		 */
 		if (tima_l2group_buffer_index) {
 			timal2group_set_pte_commit(tima_l2group_buffer,
-						tima_l2group_buffer_index);
+						tima_l2group_buffer_index, (void*)src_pte);
 		}
 		free_pages((unsigned long) tima_l2group_buffer, 1);
 	}
@@ -1212,12 +1223,12 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 	spinlock_t *ptl;
 	pte_t *start_pte;
 	pte_t *pte;
+
 again:
 	init_rss_vec(rss);
 	start_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 	pte = start_pte;
 	arch_enter_lazy_mmu_mode();
-
 	do {
 		pte_t ptent = *pte;
 		if (pte_none(ptent)) {
@@ -3092,7 +3103,6 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
 	page = lookup_swap_cache(entry);
 	if (!page) {
-		grab_swap_token(mm); /* Contend for token _before_ read-in */
 		page = swapin_readahead(entry,
 					GFP_HIGHUSER_MOVABLE, vma, address);
 		if (!page) {
@@ -3120,12 +3130,9 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 		goto out_release;
 	}
-#ifdef CONFIG_ZSWAP
-	else if (!(flags & FAULT_FLAG_TRIED))
-		swap_cache_hit(vma);
-#endif
 
 	locked = lock_page_or_retry(page, mm, flags);
+
 	delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 	if (!locked) {
 		ret |= VM_FAULT_RETRY;
