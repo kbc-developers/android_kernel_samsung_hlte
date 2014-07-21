@@ -234,8 +234,6 @@ static int micbias_en_msm_gpio = 0;
 static int spkamp_en_gpio = 0;
 static int lineout_en_gpio = 0;
 static int main_mic_delay = 0;
-int speaker_status = 0;
-EXPORT_SYMBOL(speaker_status);
 
 static int msm8974_liquid_ext_spk_power_amp_init(void)
 {
@@ -1164,22 +1162,6 @@ static int main_mic_delay_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
-static int speaker_status_get(struct snd_kcontrol *kcontrol,
-	struct snd_ctl_elem_value *ucontrol)
-{
-	pr_info("%s: speaker_status = %d\n", __func__, speaker_status);
-	ucontrol->value.integer.value[0] = speaker_status;
-	return 0;
-}
-
-static int speaker_status_put(struct snd_kcontrol *kcontrol,
-	struct snd_ctl_elem_value *ucontrol)
-{
-	speaker_status = ucontrol->value.integer.value[0];
-	pr_info("%s: speaker_status = %d\n", __func__, speaker_status);
-	return 1;
-}
-
 static int msm_proxy_rx_ch_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
@@ -1569,9 +1551,7 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 	SOC_ENUM_EXT("HDMI_RX SampleRate", msm_snd_enum[7],
 			hdmi_rx_sample_rate_get, hdmi_rx_sample_rate_put),
 	SOC_SINGLE_EXT("Main Mic Delay",SND_SOC_NOPM, 0, 100, 0,
-			main_mic_delay_get, main_mic_delay_put),
-	SOC_SINGLE_EXT("SPK Status",SND_SOC_NOPM, 0, 1, 0,
-			speaker_status_get, speaker_status_put),
+					main_mic_delay_get, main_mic_delay_put),			
 };
 
 static bool msm8974_swap_gnd_mic(struct snd_soc_codec *codec)

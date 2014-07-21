@@ -636,11 +636,10 @@ static int ssp_suspend(struct device *dev)
 	func_dbg();
 	disable_debug_timer(data);
 
-	data->uLastResumeState = MSG2SSP_AP_STATUS_SUSPEND;
-
 	if (SUCCESS != ssp_send_cmd(data, MSG2SSP_AP_STATUS_SUSPEND, 0))
 		pr_err("[SSP]: %s MSG2SSP_AP_STATUS_SUSPEND failed\n",
 			__func__);
+	data->uLastResumeState = MSG2SSP_AP_STATUS_SUSPEND;
 	disable_irq(data->iIrq);
 	return 0;
 }

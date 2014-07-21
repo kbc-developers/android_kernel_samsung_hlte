@@ -1174,6 +1174,9 @@ sec_battery_platform_data_t sec_battery_pdata = {
 #elif defined(CONFIG_MACH_FLTEEUR) || defined(CONFIG_MACH_FLTESKT)
 	.capacity_max = 990,
 	.capacity_min = 0,
+#elif defined(CONFIG_MACH_JS01LTEDCM)
+	.capacity_max = 1000,
+	.capacity_min = 0,
 #else
 	.capacity_max = 990,
 	.capacity_min = -7,

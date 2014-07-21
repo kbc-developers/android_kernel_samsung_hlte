@@ -726,10 +726,6 @@ static bool seccore_execaller(struct Header *pHeader,
 			}
 		} else if (pHeader->mType == SEPARATE_PARENT) {
 			struct Caller* pWorkCaller = pSetCaller;
-			if (pSetCaller == NULL) {
-				result = false;
-				break;
-			}
 			pSetCaller->mCheckMask |= CALLER_CHECKMASK_PARENT;
 			
 			/* header shift */

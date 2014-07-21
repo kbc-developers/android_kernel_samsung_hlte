@@ -130,6 +130,7 @@ static struct spmi_driver qpnp_isdbt_clk_driver = {
 
 static irqreturn_t isdbt_irq(int irq, void *dev_id)
 {
+	printk("isdb isdbt_irq\n");
 	isdbt_isr_sig = 1;
 	wake_up_interruptible(&isdbt_isr_wait);
 
@@ -256,6 +257,7 @@ void isdbt_hw_start(void)
 	u8 reg = 0x00;
 
 #endif
+	printk("%s \n START", __func__);
 	
 #ifdef CONFIG_ISDBT_ANT_DET
 	gpio_direction_input(isdbt_pdata->gpio_ant_det);
@@ -351,10 +353,12 @@ int data_callback(u32 hDevice, u8 *data, int len)
 	struct list_head *temp;
 	hInit = (struct ISDBT_INIT_INFO_T *)hDevice;
 
+	printk("isdb data_callback len = %d\n", len);
 
 	list_for_each(temp, &(hInit->hHead))
 	{
 		struct ISDBT_OPEN_INFO_T *hOpen;
+		printk("isdb data_callback open \n");
 		hOpen = list_entry(temp, struct ISDBT_OPEN_INFO_T, hList);
 
 		if (hOpen->isdbttype == TS_TYPE) {
@@ -382,12 +386,17 @@ static int isdbt_thread(void *hDevice)
 
 	set_user_nice(current, -20);
 
+	printk("isdbt_thread started\n");
+	PRINTF(hInit, "isdbt_kthread enter\n");
+
+	
 	BBM_TS_CALLBACK_REGISTER((u32)hInit, data_callback);
 
 	while (1) {
 		wait_event_interruptible(isdbt_isr_wait,
 			isdbt_isr_sig || kthread_should_stop());
 
+		printk("isdb thread started work\n");
 		if (driver_mode == ISDBT_POWERON) {
 			driver_mode = ISDBT_DATAREAD;
 			BBM_ISR(hInit);
@@ -425,8 +434,11 @@ int isdbt_open(struct inode *inode, struct file *filp)
 	struct ISDBT_OPEN_INFO_T *hOpen;
 
 	printk("isdbt_open. \n");
+	PRINTF(hInit, "isdbt open\n");
+
 	hOpen = kmalloc(sizeof(struct ISDBT_OPEN_INFO_T), GFP_KERNEL);
 
+	printk("isdb allocating ring buffer of %d bytes\n", RING_BUFFER_SIZE);
 	hOpen->buf = kmalloc(RING_BUFFER_SIZE, GFP_KERNEL);
 	hOpen->isdbttype = 0;
 
@@ -454,17 +466,17 @@ ssize_t isdbt_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 		= (struct ISDBT_OPEN_INFO_T *)filp->private_data;
 	struct fci_ringbuffer *cibuf = &hOpen->RingBuffer;
 	ssize_t len, read_len = 0;
-	static unsigned int log_count=0;
 
+	printk("isdb isdbt_read count = %d \n", count);
 	if (!cibuf->data || !count)	{
 		printk("isdbt_read read 0\n");
 		return 0;
 	}
 
 	if (non_blocking && (fci_ringbuffer_empty(cibuf)))	{
-		if(log_count%10 == 0)
-			printk("isdbt_read return EWOULDBLOCK count = %d\n", log_count);
-        log_count++;
+		printk("isdbt_read return EWOULDBLOCK\n");
+	//	while(non_blocking && (fci_ringbuffer_empty(cibuf)))
+	//	 usleep_range(5000,5000); 
 		return -EWOULDBLOCK;
 	}
 
@@ -485,7 +497,7 @@ ssize_t isdbt_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 	read_len = fci_ringbuffer_read_user(cibuf, buf, len);
 
 	mutex_unlock(&ringbuffer_lock);
-    log_count = 0;
+
 	return read_len;
 }
 

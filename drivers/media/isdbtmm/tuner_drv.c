@@ -153,21 +153,6 @@ static struct file_operations TunerFileOperations = {
 								.release = tuner_module_entry_close
 													};
 
-static const struct of_device_id isdbtmm_match_table[] = {
-	{   .compatible = "isdbtmm_pdata",
-	},
-	{}
-};
-													
-static struct platform_driver mmtuner_driver = {
-										.probe  = tuner_probe,
-										.remove = tuner_remove,
-										.driver = { .name = "tmmi2c",
-											        .owner = THIS_MODULE,
-													.of_match_table = isdbtmm_match_table,
-											      }
-											   };
-
 static struct platform_device *mmtuner_device;
 static struct class 	*device_class;
 /* Add Start 20121218 No_1 */
@@ -197,6 +182,32 @@ enum {
 static struct input_dev *isdbtmm_ant_input;
 static int isdbtmm_check_ant;
 static int ant_prev_status;
+
+static int tuner_suspend(struct platform_device *pdev, pm_message_t mesg)
+{
+       printk("%s called\n", __func__);
+       tuner_drv_ctl_power(TUNER_DRV_CTL_POWOFF);
+       return 0;
+    
+    
+}
+static const struct of_device_id isdbtmm_match_table[] = {
+	{   .compatible = "isdbtmm_pdata",
+	},
+	{}
+};
+													
+static struct platform_driver mmtuner_driver = {
+										.driver = { 
+                                                                                             .name = "tmmi2c",
+											     .owner = THIS_MODULE,
+											     .of_match_table = isdbtmm_match_table,
+											  },
+										.probe  = tuner_probe,
+										.remove = tuner_remove,
+                                                                                .suspend = tuner_suspend,
+					       };
+
 
 #define ISDBTMM_ANT_WAIT_INIT_TIME	500000 /* us */
 #define ISDBTMM_ANT_CHECK_DURATION 50000 /* us */
@@ -503,7 +514,7 @@ static int tuner_probe(struct platform_device *pdev)
 {
 	int ret;
 	
-    printk("mmtuner_probe: Called.\n");
+    INFO_PRINT("mmtuner_probe: Called.");
     /* tuner register */
     if (register_chrdev(TUNER_CONFIG_DRV_MAJOR, TUNER_CONFIG_DRIVER_NAME, 
     											&TunerFileOperations))
@@ -531,8 +542,9 @@ static int tuner_probe(struct platform_device *pdev)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
     mutex_init(&g_tuner_mutex);
 #endif
+    tuner_drv_ctl_power(TUNER_DRV_CTL_POWOFF);
 	
-    printk("tuner_probe: END.\n");
+    INFO_PRINT("tuner_probe: END.");
 
 #if defined(CONFIG_TMM_ANT_DET)
 	wake_lock_init(&isdbtmm_ant_wlock, WAKE_LOCK_SUSPEND, "isdbtmm_ant_wlock");
@@ -579,7 +591,7 @@ err_reg_input:
  ******************************************************************************/
 static int tuner_remove(struct platform_device *pdev)
 {
-    printk("tuner_remove: Called.\n");
+    INFO_PRINT("tuner_remove: Called.");
     TRACE();
 
     /* release of the interrupt */
@@ -588,7 +600,7 @@ static int tuner_remove(struct platform_device *pdev)
     /* tuner unregister */
     unregister_chrdev(TUNER_CONFIG_DRV_MAJOR, TUNER_CONFIG_DRIVER_NAME);
 
-    printk("tuner_remove: END.\n");
+    INFO_PRINT("tuner_remove: END.");
 
 #if defined(CONFIG_TMM_ANT_DET)
 	isdbtmm_ant_det_unreg_input();
@@ -625,7 +637,7 @@ int tuner_kernel_thread( void * arg )
     unsigned char		buff[3];
     unsigned char		bufs[3];
 
-    printk("tuner_kernel_thread: START.\n");
+    INFO_PRINT("tuner_kernel_thread: START.");
 
     /* initialization of internal variables */
     ret = 0;
@@ -779,7 +791,7 @@ static int __init tuner_drv_start(void)
     int ret =0;
     struct device *dev = NULL;
 
-    printk("mmtuner_tuner_drv_start: Called\n");
+    INFO_PRINT("mmtuner_tuner_drv_start: Called");
 
     /* driver register */
     ret = platform_driver_register(&mmtuner_driver);
@@ -853,7 +865,7 @@ static int __init tuner_drv_start(void)
 
     wake_up_process( g_tuner_kthread_id );
 
-    printk("mmtuner_tuner_drv_start: END\n");
+    INFO_PRINT("mmtuner_tuner_drv_start: END");
     return 0;
 }
 
@@ -875,7 +887,7 @@ static void __exit tuner_drv_end(void)
 #endif
 /* Modify End 20121218 No_3 */
 {
-    printk("mmtuner_tuner_drv_end: Called\n");
+    INFO_PRINT("mmtuner_tuner_drv_end: Called");
 
     /* thread stop flag */
     g_tuner_kthread_flag |= TUNER_KTH_END;
@@ -900,7 +912,7 @@ static void __exit tuner_drv_end(void)
     /* driver unregister */
     platform_driver_unregister(&mmtuner_driver);
 
-    printk("mmtuner_tuner_drv_end: END\n");
+    INFO_PRINT("mmtuner_tuner_drv_end: END");
 }
 
 /******************************************************************************
@@ -918,7 +930,7 @@ static void __exit tuner_drv_end(void)
 static int tuner_module_entry_open(struct inode* Inode, struct file* FIle)
 {
 
-    printk("tuner_module_entry_open: Called\n");
+    INFO_PRINT("tuner_module_entry_open: Called");
 
 #ifdef  TUNER_CONFIG_DRV_MULTI      /* allow multiple open */
     open_cnt++;
@@ -926,13 +938,13 @@ static int tuner_module_entry_open(struct inode* Inode, struct file* FIle)
 	/* already open */
     if( open_cnt > 0 )
     {
-        printk("tuner_module_entry_open: open error\n");
+        INFO_PRINT("tuner_module_entry_open: open error");
         return -1;
     }
 	/* first open */
     else
     {
-        printk("tuner_module_entry_open: open_cnt = 1\n");
+        INFO_PRINT("tuner_module_entry_open: open_cnt = 1");
         open_cnt++;
     }
 #endif /* TUNER_CONFIG_DRV_MULTI */
@@ -960,11 +972,11 @@ static int tuner_module_entry_close(struct inode* Inode, struct file* FIle)
 
 
 
-    printk("tuner_module_entry_close: Called\n");
+    INFO_PRINT("tuner_module_entry_close: Called");
 
 	if( open_cnt <= 0 )
 	{
-        printk("tuner_module_entry_close: close error\n");
+        INFO_PRINT("tuner_module_entry_close: close error");
 		open_cnt = 0;
 		return -1;
 	}

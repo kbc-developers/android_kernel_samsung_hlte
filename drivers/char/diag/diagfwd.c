@@ -1232,7 +1232,7 @@ static inline void diag_send_error_rsp(int index) {}
 void diag_process_hdlc(void *data, unsigned len)
 {
 	struct diag_hdlc_decode_type hdlc;
-	int ret, type = 0, crc_chk = 0;
+	int ret, type = 0;
 
 	mutex_lock(&driver->diag_hdlc_mutex);
 
@@ -1246,16 +1246,6 @@ void diag_process_hdlc(void *data, unsigned len)
 	hdlc.escaping = 0;
 
 	ret = diag_hdlc_decode(&hdlc);
-	if (ret) {
-		crc_chk = crc_check(hdlc.dest_ptr, hdlc.dest_idx);
-		if (crc_chk) {
-			/* CRC check failed. */
-			pr_err_ratelimited("diag: In %s, bad CRC. Dropping packet\n",
-								__func__);
-			mutex_unlock(&driver->diag_hdlc_mutex);
-			return;
-		}
-	}
 
 	/*
 	 * If the message is 3 bytes or less in length then the message is
@@ -1278,11 +1268,13 @@ void diag_process_hdlc(void *data, unsigned len)
 			return;
 		}
 	} else if (driver->debug_flag) {
-		pr_err("diag: In %s, partial packet received, dropping packet, len: %d\n",
-								__func__, len);
+		printk(KERN_ERR "Packet dropped due to bad HDLC coding/CRC"
+				" errors or partial packet received, packet"
+				" length = %d\n", len);
 		print_hex_dump(KERN_DEBUG, "Dropped Packet Data: ", 16, 1,
 					   DUMP_PREFIX_ADDRESS, data, len, 1);
-		driver->debug_flag = 0;
+		//driver->debug_flag = 0;
+		//return;
 	}
 	/* send error responses from APPS for Central Routing */
 	if (type == 1 && chk_apps_only()) {

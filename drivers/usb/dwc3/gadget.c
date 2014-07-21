@@ -1624,9 +1624,6 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 	struct dwc3 *dwc = gadget_to_dwc(_gadget);
 	unsigned long flags;
 	int ret = 0;
-#ifdef CONFIG_SEC_H_PROJECT
-	int cancel_work = 0;
-#endif
 
 	if (!dwc->dotg)
 		return -EPERM;
@@ -1659,7 +1656,7 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 #ifdef CONFIG_SEC_H_PROJECT
 			dwc->ss_host_avail = -1;
 			dwc->speed_limit = dwc->gadget.max_speed;
-			cancel_work = 1;
+			WORK_CANCEL(dwc);
 #endif
 			ret = dwc3_gadget_run_stop(dwc, 0);
 		}
@@ -1675,9 +1672,6 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 	}
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
-#ifdef CONFIG_SEC_H_PROJECT
-	if (cancel_work)	WORK_CANCEL(dwc);
-#endif
 	return ret;
 }
 

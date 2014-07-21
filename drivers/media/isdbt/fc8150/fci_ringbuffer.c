@@ -28,6 +28,8 @@ void fci_ringbuffer_init(struct fci_ringbuffer *rbuf, void *data, size_t len)
 	rbuf->data = data;
 	rbuf->size = len;
 	rbuf->error = 0;
+
+	printk("isdb %s pread = %d pwrite = %d\n", __func__, rbuf->pread, rbuf->pwrite);
 	init_waitqueue_head(&rbuf->queue);
 
 	spin_lock_init(&(rbuf->lock));
@@ -42,10 +44,12 @@ ssize_t fci_ringbuffer_free(struct fci_ringbuffer *rbuf)
 {
 	ssize_t free;
 
+	printk("isdb %s pread = %d pwrite = %d\n", __func__, rbuf->pread, rbuf->pwrite);
 	free = rbuf->pread - rbuf->pwrite;
 	if (free <= 0)
 		free += rbuf->size;
 
+	printk("isdb %s free  = %d\n", __func__, free-1);
 	return free-1;
 }
 
@@ -53,6 +57,7 @@ ssize_t fci_ringbuffer_avail(struct fci_ringbuffer *rbuf)
 {
 	ssize_t avail;
 
+	printk("isdb %s pread = %d pwrite = %d\n", __func__, rbuf->pread, rbuf->pwrite);
 	avail = rbuf->pwrite - rbuf->pread;
 	if (avail < 0)
 		avail += rbuf->size;
@@ -62,12 +67,14 @@ ssize_t fci_ringbuffer_avail(struct fci_ringbuffer *rbuf)
 void fci_ringbuffer_flush(struct fci_ringbuffer *rbuf)
 {
 	rbuf->pread = rbuf->pwrite;
+	printk("isdb %s pread = %d pwrite = %d\n", __func__, rbuf->pread, rbuf->pwrite);
 	rbuf->error = 0;
 }
 
 void fci_ringbuffer_reset(struct fci_ringbuffer *rbuf)
 {
 	rbuf->pread = rbuf->pwrite = 0;
+	printk("isdb %s pread = %d pwrite = %d\n", __func__, rbuf->pread, rbuf->pwrite);
 	rbuf->error = 0;
 }
 
@@ -88,6 +95,7 @@ ssize_t fci_ringbuffer_read_user(struct fci_ringbuffer *rbuf
 	size_t todo = len;
 	size_t split;
 
+	printk("isdb %s pread = %d pwrite = %d len = %d\n", __func__, rbuf->pread, rbuf->pwrite, len);
 	split = (rbuf->pread + len > rbuf->size) ? rbuf->size - rbuf->pread : 0;
 	if (split > 0) {
 		if (copy_to_user(buf, rbuf->data+rbuf->pread, split))
@@ -101,6 +109,7 @@ ssize_t fci_ringbuffer_read_user(struct fci_ringbuffer *rbuf
 
 	rbuf->pread = (rbuf->pread + todo) % rbuf->size;
 
+	printk("isdb after %s pread = %d pwrite = %d\n", __func__,  rbuf->pread, rbuf->pwrite);
 	return len;
 }
 
@@ -109,6 +118,7 @@ void fci_ringbuffer_read(struct fci_ringbuffer *rbuf, u8 *buf, size_t len)
 	size_t todo = len;
 	size_t split;
 
+	printk("isdb %s pread = %d pwrite = %d len = %d\n", __func__,  rbuf->pread, rbuf->pwrite, len);
 	split = (rbuf->pread + len > rbuf->size) ? rbuf->size - rbuf->pread : 0;
 	if (split > 0) {
 		memcpy(buf, rbuf->data+rbuf->pread, split);
@@ -119,6 +129,7 @@ void fci_ringbuffer_read(struct fci_ringbuffer *rbuf, u8 *buf, size_t len)
 	memcpy(buf, rbuf->data+rbuf->pread, todo);
 
 	rbuf->pread = (rbuf->pread + todo) % rbuf->size;
+	printk("isdb after %s pread = %d pwrite = %d\n", __func__,  rbuf->pread, rbuf->pwrite);
 }
 
 ssize_t fci_ringbuffer_write(struct fci_ringbuffer *rbuf
@@ -127,6 +138,7 @@ ssize_t fci_ringbuffer_write(struct fci_ringbuffer *rbuf
 	size_t todo = len;
 	size_t split;
 
+	printk("isdb %s pread = %d pwrite = %d len = %d\n", __func__,  rbuf->pread, rbuf->pwrite, len);
 	split = (rbuf->pwrite + len > rbuf->size)
 		? rbuf->size - rbuf->pwrite : 0;
 
@@ -139,6 +151,7 @@ ssize_t fci_ringbuffer_write(struct fci_ringbuffer *rbuf
 	memcpy(rbuf->data+rbuf->pwrite, buf, todo);
 	rbuf->pwrite = (rbuf->pwrite + todo) % rbuf->size;
 
+	printk("isdb  after %s pread = %d pwrite = %d\n", __func__,  rbuf->pread, rbuf->pwrite);
 	return len;
 }
 
@@ -165,6 +178,7 @@ ssize_t fci_ringbuffer_pkt_read_user(struct fci_ringbuffer *rbuf, size_t idx,
 	size_t split;
 	size_t pktlen;
 
+	printk("isdb %s  len = %d idx = %d offset = %d\n", __func__,  len, idx, offset);
 	pktlen = rbuf->data[idx] << 8;
 	pktlen |= rbuf->data[(idx + 1) % rbuf->size];
 	if (offset > pktlen)
@@ -195,6 +209,7 @@ ssize_t fci_ringbuffer_pkt_read(struct fci_ringbuffer *rbuf, size_t idx,
 	size_t split;
 	size_t pktlen;
 
+	printk("isdb %s  len = %d idx = %d offset = %d\n", __func__,  len, idx, offset);
 	pktlen = rbuf->data[idx] << 8;
 	pktlen |= rbuf->data[(idx + 1) % rbuf->size];
 	if (offset > pktlen)

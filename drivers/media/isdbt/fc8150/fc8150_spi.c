@@ -166,6 +166,7 @@ static int spi_dataread(HANDLE hDevice, u16 addr
 	tx_data[3] = (length >> 8) & 0xff;
 	tx_data[4] = length & 0xff;
 
+	printk("isdb spi_dataread len = %d\n", length);
 	res = fc8150_spi_write_then_read(fc8150_spi
 		, &tx_data[0], 5, data, length);
 
