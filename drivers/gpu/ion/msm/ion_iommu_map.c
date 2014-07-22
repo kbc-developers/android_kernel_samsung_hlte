@@ -285,7 +285,7 @@ static void ion_iommu_heap_unmap_iommu(struct ion_iommu_map *data)
 static struct ion_iommu_map *__ion_iommu_map(struct ion_iommu_meta *meta,
 		int domain_num, int partition_num, unsigned long align,
 		unsigned long iova_length, unsigned long flags,
-		unsigned long *iova)
+		ion_phys_addr_t *iova)
 {
 	struct ion_iommu_map *data;
 	int ret;
@@ -367,7 +367,7 @@ static void ion_iommu_meta_put(struct ion_iommu_meta *meta)
 
 int ion_map_iommu(struct ion_client *client, struct ion_handle *handle,
 			int domain_num, int partition_num, unsigned long align,
-			unsigned long iova_length, unsigned long *iova,
+			unsigned long iova_length, ion_phys_addr_t *iova,
 			unsigned long *buffer_size,
 			unsigned long flags, unsigned long iommu_flags)
 {
@@ -434,14 +434,9 @@ int ion_map_iommu(struct ion_client *client, struct ion_handle *handle,
 	mutex_lock(&msm_iommu_map_mutex);
 	iommu_meta = ion_iommu_meta_lookup(table);
 
-	if (!iommu_meta) {
+	if (!iommu_meta)
 		iommu_meta = ion_iommu_meta_create(client, handle, table, size);
-		if (IS_ERR_OR_NULL(iommu_meta)) {
-			mutex_unlock(&msm_iommu_map_mutex);
-			ret = PTR_ERR(iommu_meta);
-			goto out;
-		}
-	} else
+	else
 		kref_get(&iommu_meta->ref);
 	BUG_ON(iommu_meta->size != size);
 	mutex_unlock(&msm_iommu_map_mutex);
@@ -457,7 +452,7 @@ int ion_map_iommu(struct ion_client *client, struct ion_handle *handle,
 			ret = 0;
 		} else {
 			ret = PTR_ERR(iommu_map);
-			goto meta_put_out;
+			goto out_unlock;
 		}
 	} else {
 		if (iommu_map->flags != iommu_flags) {
@@ -465,13 +460,13 @@ int ion_map_iommu(struct ion_client *client, struct ion_handle *handle,
 				__func__, handle,
 				iommu_map->flags, iommu_flags);
 			ret = -EINVAL;
-			goto meta_put_out;
+			goto out_unlock;
 		} else if (iommu_map->mapped_size != iova_length) {
 			pr_err("%s: handle %p is already mapped with length %x, trying to map with length %lx\n",
 				__func__, handle, iommu_map->mapped_size,
 				iova_length);
 			ret = -EINVAL;
-			goto meta_put_out;
+			goto out_unlock;
 		} else {
 			kref_get(&iommu_map->ref);
 			*iova = iommu_map->iova_addr;
@@ -481,11 +476,11 @@ int ion_map_iommu(struct ion_client *client, struct ion_handle *handle,
 	*buffer_size = size;
 	return ret;
 
-
-meta_put_out:
+out_unlock:
 	mutex_unlock(&iommu_meta->lock);
+out:
+
 	ion_iommu_meta_put(iommu_meta);
-out:	
 	return ret;
 }
 EXPORT_SYMBOL(ion_map_iommu);

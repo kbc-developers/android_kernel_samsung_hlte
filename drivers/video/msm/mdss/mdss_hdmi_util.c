@@ -18,6 +18,7 @@
 static struct msm_hdmi_mode_timing_info
 	hdmi_supported_video_mode_lut[HDMI_VFRMT_MAX];
 
+#if defined (CONFIG_VIDEO_MHL_V2) || defined (CONFIG_VIDEO_MHL_SII8246)
 static struct msm_hdmi_mode_timing_info
 	hdmi_mhl_supported_video_mode_lut[HDMI_VFRMT_MAX] = {
 	HDMI_VFRMT_640x480p60_4_3_TIMING,
@@ -80,6 +81,7 @@ static struct msm_hdmi_mode_timing_info
 	VFRMT_NOT_SUPPORTED(HDMI_VFRMT_1440x480i240_4_3),
 	VFRMT_NOT_SUPPORTED(HDMI_VFRMT_1440x480i240_16_9),
 }; /* hdmi_mhl_supported_video_mode_lut */
+#endif
 
 void hdmi_del_supported_mode(u32 mode)
 {
@@ -106,6 +108,7 @@ const struct msm_hdmi_mode_timing_info *hdmi_get_supported_mode(u32 mode)
 	return ret;
 } /* hdmi_get_supported_mode */
 
+#if defined (CONFIG_VIDEO_MHL_V2) || defined (CONFIG_VIDEO_MHL_SII8246)
 const struct msm_hdmi_mode_timing_info *hdmi_mhl_get_supported_mode(u32 mode)
 {
 	const struct msm_hdmi_mode_timing_info *ret = NULL;
@@ -125,6 +128,7 @@ const struct msm_hdmi_mode_timing_info *hdmi_mhl_get_supported_mode(u32 mode)
 
 	return ret;
 } /* hdmi_mhl_get_supported_mode */
+#endif
 
 int hdmi_get_video_id_code(struct msm_hdmi_mode_timing_info *timing_in)
 {
@@ -208,30 +212,30 @@ const char *hdmi_get_single_video_3d_fmt_2string(u32 format)
 	return "";
 } /* hdmi_get_single_video_3d_fmt_2string */
 
-ssize_t hdmi_get_video_3d_fmt_2string(u32 format, char *buf)
+ssize_t hdmi_get_video_3d_fmt_2string(u32 format, char *buf, u32 size)
 {
 	ssize_t ret, len = 0;
-	ret = snprintf(buf, PAGE_SIZE, "%s",
+	ret = scnprintf(buf, size, "%s",
 		hdmi_get_single_video_3d_fmt_2string(
 			format & FRAME_PACKING));
 	len += ret;
 
 	if (len && (format & TOP_AND_BOTTOM))
-		ret = snprintf(buf + len, PAGE_SIZE, ":%s",
+		ret = scnprintf(buf + len, size - len, ":%s",
 			hdmi_get_single_video_3d_fmt_2string(
 				format & TOP_AND_BOTTOM));
 	else
-		ret = snprintf(buf + len, PAGE_SIZE, "%s",
+		ret = scnprintf(buf + len, size - len, "%s",
 			hdmi_get_single_video_3d_fmt_2string(
 				format & TOP_AND_BOTTOM));
 	len += ret;
 
 	if (len && (format & SIDE_BY_SIDE_HALF))
-		ret = snprintf(buf + len, PAGE_SIZE, ":%s",
+		ret = scnprintf(buf + len, size - len, ":%s",
 			hdmi_get_single_video_3d_fmt_2string(
 				format & SIDE_BY_SIDE_HALF));
 	else
-		ret = snprintf(buf + len, PAGE_SIZE, "%s",
+		ret = scnprintf(buf + len, size - len, "%s",
 			hdmi_get_single_video_3d_fmt_2string(
 				format & SIDE_BY_SIDE_HALF));
 	len += ret;

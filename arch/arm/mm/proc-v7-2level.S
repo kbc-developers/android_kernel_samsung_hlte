@@ -96,10 +96,24 @@ ENDPROC(cpu_v7_switch_mm)
 /* 
  * Pass the pointer to the group buffer and its length to TZ side. 
  * cpu_v7_timal2group_set_pte_commit(tima_l2group_entry_ptr,
- * 				tima_l2group_entries_count)
+ * 				tima_l2group_entries_count, void* ptet)
  */
 ENTRY(cpu_v7_timal2group_set_pte_commit)
-	
+	/*Flush pte cache first*/
+	stmfd   sp!,{r0,r1}
+	mov r0, r2
+	ldr r1,=0x1000
+	add r1, r1, r0
+1:
+	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D line / unified line
+	add	r0, r0, #128
+	cmp	r0, r1
+	blo	1b
+	dsb
+	isb
+	//bl v7_flush_kern_dcache_area
+	pop     {r0,r1}
+	stmfd   sp!,{r2}
 	/* Second parameter is the length, move it to r2 */
 	mov	r2, r1
 	/* First parameter is the address, move it to r1 */
@@ -111,6 +125,18 @@ ENTRY(cpu_v7_timal2group_set_pte_commit)
 	smc     #1
 	pop	{r0}
 	pop     {r0-r3, r11}
+	pop     {r2}
+	mov r0, r2
+	ldr r1,=0x1000
+	add r1, r1, r0
+2:
+	mcr	p15, 0, r0, c7, c6, 1		@ invalidate D line / unified line
+	add	r0, r0, #128
+	cmp	r0, r1
+	blo	2b
+	dsb
+	isb
+	//bl v7_inval_kern_dcache_area
 	mov	pc, lr
 ENDPROC(cpu_v7_timal2group_set_pte_commit)
 
@@ -202,12 +228,12 @@ ENDPROC(cpu_v7_timal2group_set_pte_ext)
 #ifdef CONFIG_TIMA_RKP
 ENTRY(cpu_v7_tima_iommu_opt)
 	
+	stmfd   sp!,{r0-r3, r11}
 	mov	r3, r2
 	/* Second parameter is the end addr, move it to r2 */
 	mov	r2, r1
 	/* First parameter is the start addr, move it to r1 */
 	mov	r1, r0
-	stmfd   sp!,{r0-r3, r11}
 	stmfd   sp!,{r0}
 	mov	r11, r3       
 	ldr     r0, =0x3f820221        @cmd_id=0x20
@@ -328,6 +354,9 @@ ENTRY(cpu_v7_tima_set_pte_ext)
 ENDPROC(cpu_v7_tima_set_pte_ext)
 #endif
 
+#ifdef	CONFIG_TIMA_RKP
+	.global cpu_v7_set_pte_ext_proc_end
+#endif
 ENTRY(cpu_v7_set_pte_ext)
 #ifdef CONFIG_MMU
 	str	r1, [r0]			@ linux version
@@ -361,9 +390,12 @@ ENTRY(cpu_v7_set_pte_ext)
  ARM(	str	r3, [r0, #2048]! )
  THUMB(	add	r0, r0, #2048 )
  THUMB(	str	r3, [r0] )
- 	mcr     p15, 0, r0, c7, c10, 1          @ flush_pte
+	mcr	p15, 0, r0, c7, c10, 1		@ flush_pte
 #endif
 	mov	pc, lr
+#ifdef	CONFIG_TIMA_RKP
+cpu_v7_set_pte_ext_proc_end:
+#endif
 ENDPROC(cpu_v7_set_pte_ext)
 
 	/*

@@ -23,6 +23,7 @@
 static int multi; /* current configuration */
 static int is_multi; /* Is multi configuration available ? */
 static int stringMode = OTHER_REQUEST;
+static int configMode = OTHER_REQUEST;
 static int interfaceCount;
 
 /* Description  : Set configuration number
@@ -31,12 +32,15 @@ static int interfaceCount;
  */
 unsigned set_config_number(unsigned num)
 {
-	if (num != 0)
+	if (is_multi_configuration()){
 		USB_DBG_ESS("multi config_num=%d(zero base)\n", num);
-	else
-		USB_DBG_ESS("single config\n");
+		if(num < MAX_MULTI_CONFIG_NUM)
+			multi = num;	/* save config number from Host request */
+	} else {
+		USB_DBG_ESS("single config num=%d\n", num);
+		multi = 0; /* single config */
+	}
 
-	multi = num;	/* save config number from Host request */
 	return 0;	/* always return 0 config */
 }
 
@@ -251,12 +255,30 @@ void set_interface_count(struct usb_configuration *config,
  */
 void set_string_mode(u16 w_length)
 {
-	if (w_length == 4) {
+	if (w_length == 2) {
 		USB_DBG("mac request\n");
 		stringMode = MAC_REQUEST;
 	} else if (w_length == 0) {
 		USB_DBG("initialize string mode\n");
 		stringMode = OTHER_REQUEST;
+	}
+	printk(KERN_INFO "usb: %s %d \n", __func__, w_length);
+}
+
+/* Description  : Set config mode
+ *		  This mode will be used for deciding other interface.
+ * Parameter    : u16 w_length
+ *		- 4 means MAC request 
+ *		- Windows and Linux PC always request Maxconfig size.
+ */
+void set_config_mode(u16 w_length)
+{
+	if (w_length == 4) {
+		USB_DBG("mac request\n");
+		configMode = MAC_REQUEST;
+	} else if (w_length == 0) {
+		USB_DBG("initialize string mode\n");
+		configMode = OTHER_REQUEST;
 	}
 	printk(KERN_INFO "usb: %s %d \n", __func__, w_length);
 }
@@ -268,5 +290,5 @@ void set_string_mode(u16 w_length)
  */
 u16 get_host_os_type(void)
 {
-	return stringMode;
+	return (stringMode || configMode);
 }

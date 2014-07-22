@@ -286,14 +286,18 @@ Acquire the device through reset or power cycle
 #ifdef RESET_MODE
 	 /* Initialize the Host & Target for ISSP operations */
 	fIsError = fXRESInitializeTargetForISSP();
-	if (fIsError != 0)
+	if (fIsError) {
 		ErrorTrap(info, fIsError);
+		return fIsError;
+	}
 #else
 	 /* Initialize the Host & Target for ISSP operations */
 	fIsError = fPowerCycleInitializeTargetForISSP(info);
 
-	if (fIsError != 0)
+	if (fIsError){
 		ErrorTrap(info, fIsError);
+		return fIsError;
+	}
 #endif
 /*#if 0
 Run the SiliconID Verification, and proceed according to result.
@@ -309,8 +313,10 @@ Run the SiliconID Verification, and proceed according to result.
 	 /* Bulk-Erase the Device. */
 
 	fIsError = fEraseTarget();
-	if (fIsError != 0)
+	if (fIsError) {
 		ErrorTrap(info, fIsError);
+		return fIsError;		
+	}
 
 	#ifdef TX_ON
 		TX8SW_PutCRLF();

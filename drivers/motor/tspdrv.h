@@ -42,7 +42,14 @@ extern struct vibrator_platform_data vibrator_drvdata;
 #define MODULE_NAME                         "tspdrv"
 #define TSPDRV                              "/dev/"MODULE_NAME
 #define TSPDRV_MAGIC_NUMBER                 0x494D4D52
+
+#ifdef CONFIG_TACTILE_ASSIST
+#define TSPDRV_IOCTL_GROUP                  0x52
+#define TSPDRV_SET_MAGIC_NUMBER             _IO(TSPDRV_IOCTL_GROUP, 2)
+#endif
+
 #define TSPDRV_STOP_KERNEL_TIMER            _IO(TSPDRV_MAGIC_NUMBER & 0xFF, 1)
+
 /*
 ** Obsolete IOCTL command
 ** #define TSPDRV_IDENTIFY_CALLER           _IO(TSPDRV_MAGIC_NUMBER & 0xFF, 2)
@@ -91,39 +98,51 @@ int32_t g_nforce_32;
 
 #if defined(CONFIG_MACH_KS01SKT) \
 	   || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) \
-	   || defined(CONFIG_MACH_JACTIVESKT) || defined(CONFIG_MACH_HLTEDCM)
+	   || defined(CONFIG_MACH_JACTIVESKT) || defined(CONFIG_MACH_HLTEDCM) \
+	   || defined(CONFIG_MACH_HLTEKDI)
 #define MOTOR_STRENGTH			94/*MOTOR_STRENGTH 94 %*/
 #elif defined(CONFIG_MACH_LT03EUR) || defined(CONFIG_MACH_LT03SKT)\
-	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT)
+	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT) || defined(CONFIG_MACH_PICASSO_LTE)
 #define MOTOR_STRENGTH			98/*MOTOR_STRENGTH 98 %*/
-#elif defined(CONFIG_MACH_JS01LTEDCM)
-#define MOTOR_STRENGTH			93/*MOTOR_STRENGTH 93 %*/
+#elif defined(CONFIG_MACH_HLTEUSC) || defined(CONFIG_MACH_HLTEVZW)
+#define MOTOR_STRENGTH			99/*MOTOR_STRENGTH 99 %*/
+#elif defined(CONFIG_SEC_K_PROJECT)
+#define MOTOR_STRENGTH			90/*MOTOR_STRENGTH 90 %*/
 #else
 #define MOTOR_STRENGTH			98/*MOTOR_STRENGTH 98 %*/
 #endif
 
 
-#if defined  (CONFIG_MACH_HLTEATT)
-	#define GP_CLK_M_DEFAULT			3
-	#define GP_CLK_N_DEFAULT			137
-	#define GP_CLK_D_DEFAULT			68  /* 50% duty cycle */
-	#define IMM_PWM_MULTIPLIER			137
-#elif defined (CONFIG_MACH_HLTESPR) || defined (CONFIG_MACH_HLTEEUR) || defined(CONFIG_SEC_LOCALE_KOR_H)
+#if defined (CONFIG_MACH_HLTESPR) || defined (CONFIG_MACH_HLTEEUR) || defined(CONFIG_SEC_LOCALE_KOR_H) || defined (CONFIG_MACH_HLTETMO) || defined(CONFIG_MACH_H3GDUOS) || defined(CONFIG_MACH_HLTEATT)
 	#define GP_CLK_M_DEFAULT                        3
 	#define GP_CLK_N_DEFAULT                        138
 	#define GP_CLK_D_DEFAULT                        69  /* 50% duty cycle	*/
 	#define IMM_PWM_MULTIPLIER			137
-#elif defined (CONFIG_MACH_JS01LTEDCM)
+#elif defined (CONFIG_MACH_HLTEDCM) || defined (CONFIG_MACH_HLTEKDI) || defined (CONFIG_MACH_JS01LTEDCM) || defined (CONFIG_MACH_JS01LTESBM)
 	#define GP_CLK_M_DEFAULT			2
 	#define GP_CLK_N_DEFAULT			92
 	#define GP_CLK_D_DEFAULT			46  /* 50% duty cycle */
 	#define IMM_PWM_MULTIPLIER		92
+#elif defined (CONFIG_MACH_HLTEUSC) || defined(CONFIG_MACH_HLTEVZW)
+	#define GP_CLK_M_DEFAULT			1
+	#define GP_CLK_N_DEFAULT			46
+	#define GP_CLK_D_DEFAULT			23  /* 50% duty cycle */
+	#define IMM_PWM_MULTIPLIER		46
+#elif defined(CONFIG_MACH_FLTESKT)
+	#define GP_CLK_M_DEFAULT			2
+	#define GP_CLK_N_DEFAULT                        92
+	#define GP_CLK_D_DEFAULT			46  /* 50% duty cycle */
+	#define IMM_PWM_MULTIPLIER			92
+#elif defined(CONFIG_SEC_K_PROJECT)
+	#define GP_CLK_M_DEFAULT			3
+	#define GP_CLK_N_DEFAULT                        120
+	#define GP_CLK_D_DEFAULT			60  /* 50% duty cycle */
+	#define IMM_PWM_MULTIPLIER			120
 #else
 	#define GP_CLK_M_DEFAULT			2
 	#define GP_CLK_N_DEFAULT                        91
 	#define GP_CLK_D_DEFAULT			46  /* 50% duty cycle */
 	#define IMM_PWM_MULTIPLIER			91
-
 #endif
 
 
@@ -171,7 +190,8 @@ static void __iomem *virt_mmss_gp1_base;
 #define HWIO_GP_NS_REG_ADDR ((void __iomem *)(virt_mmss_gp1_base + 0xc))	//MMSS_CC_GP1_N
 #define HWIO_GP_D_REG_ADDR ((void __iomem *)(virt_mmss_gp1_base + 0x10))	//MMSS_CC_GP1_D
 
-#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
+#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) || \
+	defined(CONFIG_MACH_JS01LTEDCM) || defined(CONFIG_MACH_JS01LTESBM)
 	#define HWIO_CAMSS_GP1_CBCR_ADDR ((void __iomem *)(virt_mmss_gp1_base - 0x4))	//MMSS_CC_CAMSS_GP3_CBCR
 #else
 	#define HWIO_CAMSS_GP1_CBCR_ADDR ((void __iomem *)(virt_mmss_gp1_base + 0x24))	//MMSS_CC_CAMSS_GP1_CBCR
@@ -266,8 +286,9 @@ int32_t vibe_set_pwm_freq(int nForce);
 
 #if defined(CONFIG_MOTOR_DRV_MAX77803)
 extern void max77803_vibtonz_en(bool en);
-#endif
-#if defined(CONFIG_MOTOR_DRV_DRV2603)
+#elif defined(CONFIG_MOTOR_DRV_MAX77804K)
+extern void max77804k_vibtonz_en(bool en);
+#elif defined(CONFIG_MOTOR_DRV_DRV2603)
 void drv2603_gpio_en(bool);
 static int32_t drv2603_gpio_init(void);
 #endif

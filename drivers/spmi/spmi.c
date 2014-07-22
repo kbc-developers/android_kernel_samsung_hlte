@@ -35,6 +35,11 @@ static DEFINE_IDR(ctrl_idr);
 static struct device_type spmi_dev_type;
 static struct device_type spmi_ctrl_type;
 
+#if (!defined(CONFIG_MACH_CT01) && !defined(CONFIG_MACH_CT01_CHN_CU))
+/* for global use */
+struct spmi_controller *spmi_ctrl_extra;
+#endif
+
 /* Forward declarations */
 struct bus_type spmi_bus_type;
 static int spmi_register_controller(struct spmi_controller *ctrl);
@@ -363,21 +368,27 @@ EXPORT_SYMBOL_GPL(spmi_register_board_info);
 static inline int
 spmi_cmd(struct spmi_controller *ctrl, u8 opcode, u8 sid)
 {
-	BUG_ON(!ctrl || !ctrl->cmd);
+	if (!ctrl || !ctrl->cmd || ctrl->dev.type != &spmi_ctrl_type)
+		return -EINVAL;
+
 	return ctrl->cmd(ctrl, opcode, sid);
 }
 
 static inline int spmi_read_cmd(struct spmi_controller *ctrl,
 				u8 opcode, u8 sid, u16 addr, u8 bc, u8 *buf)
 {
-	BUG_ON(!ctrl || !ctrl->read_cmd);
+	if (!ctrl || !ctrl->read_cmd || ctrl->dev.type != &spmi_ctrl_type)
+		return -EINVAL;
+
 	return ctrl->read_cmd(ctrl, opcode, sid, addr, bc, buf);
 }
 
 static inline int spmi_write_cmd(struct spmi_controller *ctrl,
 				u8 opcode, u8 sid, u16 addr, u8 bc, u8 *buf)
 {
-	BUG_ON(!ctrl || !ctrl->write_cmd);
+	if (!ctrl || !ctrl->write_cmd || ctrl->dev.type != &spmi_ctrl_type)
+		return -EINVAL;
+
 	return ctrl->write_cmd(ctrl, opcode, sid, addr, bc, buf);
 }
 
@@ -449,6 +460,19 @@ int spmi_ext_register_readl(struct spmi_controller *ctrl,
 	return spmi_read_cmd(ctrl, SPMI_CMD_EXT_READL, sid, addr, len - 1, buf);
 }
 EXPORT_SYMBOL_GPL(spmi_ext_register_readl);
+
+#if (!defined(CONFIG_MACH_CT01) && !defined(CONFIG_MACH_CT01_CHN_CU))
+int spmi_ext_register_readl_extra(u8 sid, u16 addr, u8 *buf, int len)
+{
+
+        /* 4-bit Slave Identifier, 16-bit register address, up to 8 bytes */
+        if (sid > SPMI_MAX_SLAVE_ID || len <= 0 || len > 8)
+                return -EINVAL;
+
+        return spmi_read_cmd(spmi_ctrl_extra, SPMI_CMD_EXT_READL, sid, addr, len - 1, buf);
+}
+EXPORT_SYMBOL_GPL(spmi_ext_register_readl_extra);
+#endif
 
 /**
  * spmi_register_write() - register write
@@ -538,6 +562,20 @@ int spmi_ext_register_writel(struct spmi_controller *ctrl,
 	return spmi_write_cmd(ctrl, op, sid, addr, len - 1, buf);
 }
 EXPORT_SYMBOL_GPL(spmi_ext_register_writel);
+
+#if (!defined(CONFIG_MACH_CT01) && !defined(CONFIG_MACH_CT01_CHN_CU))
+int spmi_ext_register_writel_extra(u8 sid, u16 addr, u8 *buf, int len)
+{
+        u8 op = SPMI_CMD_EXT_WRITEL;
+
+        /* 4-bit Slave Identifier, 16-bit register address, up to 8 bytes */
+        if (sid > SPMI_MAX_SLAVE_ID || len <= 0 || len > 8)
+                return -EINVAL;
+
+        return spmi_write_cmd(spmi_ctrl_extra, op, sid, addr, len - 1, buf);
+}
+EXPORT_SYMBOL_GPL(spmi_ext_register_writel_extra);
+#endif
 
 /**
  * spmi_command_reset() - sends RESET command to the specified slave

@@ -36,11 +36,11 @@
 #define BCMNFC_READ_MULTI_PACKETS	_IO(BCMNFC_MAGIC, 0x06)
 
 struct bcm2079x_platform_data {
-	unsigned int irq_gpio;
+	int irq_gpio;
 	u32 irq_gpio_flags;
-	unsigned int en_gpio;
+	int en_gpio;
 	u32 en_gpio_flags;
-	unsigned int wake_gpio;
+	int wake_gpio;
 	u32 wake_gpio_flags;
 };
 

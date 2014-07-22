@@ -19,6 +19,8 @@
 
 #include <linux/usb/composite.h>
 
+#define MAX_STREAMING_FUNCS 3
+#define FUNC_NAME_LEN 10
 struct android_usb_platform_data {
 	int (*update_pid_and_serial_num)(uint32_t, const char *);
 	u32 swfi_latency;
@@ -27,6 +29,9 @@ struct android_usb_platform_data {
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	u8 nluns;
 #endif
+	bool internal_ums;
+	char streaming_func[MAX_STREAMING_FUNCS][FUNC_NAME_LEN];
+	int  streaming_func_count;
 };
 
 #ifndef CONFIG_TARGET_CORE

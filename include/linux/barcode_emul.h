@@ -46,6 +46,8 @@ struct barcode_emul_platform_data {
 	u32 irda_wake_flag;
 	int irda_irq;
 	u32 irda_irq_flag;
+	int ir_led_en;
+	u32 ir_led_en_flag;
 #endif
 };
 

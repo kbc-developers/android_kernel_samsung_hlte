@@ -48,7 +48,7 @@
  *
  *     - SEND_KEY_FILE:
  *           Writing to it allows to send a keycode if the kb is registered.
- *           The syntax is "<keycode> <action>". Keycode is the linux keycode and
+ *           The syntax is "<keycode> <action>". Keycode is the linux keycode,
  *           action is 1 for ACTION_DOWN (press) and 0 for ACTION_UP (release).
  */
 
@@ -58,18 +58,19 @@ static struct input_dev *key_dev;
 
 /*
  * Mutex protects key_dev access to avoid sending keys while disabling keyboard
- * It also protects time_to_unregister
+ * It also protects time_to_unregister.
  */
 static DEFINE_MUTEX(dev_mutex);
 
 static void unregister_keyboard_handler(struct work_struct *work);
 /*
- * Work used to schedule keyboard unregistration
+ * Work used to schedule keyboard unregistration.
  */
-static DECLARE_DELAYED_WORK(unregister_keyboard_work, unregister_keyboard_handler);
+static DECLARE_DELAYED_WORK(unregister_keyboard_work,
+			    unregister_keyboard_handler);
 
 /**
- * Time for the next unregistration
+ * Time for the next unregistration.
  */
 static unsigned long time_to_unregister = INITIAL_JIFFIES;
 
@@ -80,7 +81,8 @@ static unsigned long time_to_unregister = INITIAL_JIFFIES;
  *        unregistered.
  * @note: must be called with dev_mutex locked
  */
-static void register_keyboard_locked(int timeout)
+static void
+register_keyboard_locked(int timeout)
 {
 	/* Register keyboard if needed */
 	if (!key_dev) {
@@ -94,9 +96,8 @@ static void register_keyboard_locked(int timeout)
 		key_dev->name = DRV_NAME;
 		key_dev->evbit[0] = BIT_MASK(EV_KEY);
 		/* Allow all the keycodes */
-		for (i = 0; i <= BIT_WORD(KEY_MAX); i++) {
+		for (i = 0; i <= BIT_WORD(KEY_MAX); i++)
 			key_dev->keybit[i] = (unsigned long) -1;
-		}
 
 		if (input_register_device(key_dev)) {
 			printk(KERN_ERR "Cannot register input device\n");
@@ -109,10 +110,12 @@ static void register_keyboard_locked(int timeout)
 	/* Manage automatic unregistration */
 	if (timeout > 0) {
 		/* Shedule unregister or update timeout */
-		unsigned long new_timeout = jiffies + msecs_to_jiffies(timeout * 1000);
+		unsigned long new_timeout =
+			jiffies + msecs_to_jiffies(timeout * 1000);
 		if (time_after(new_timeout, time_to_unregister)) {
 			cancel_delayed_work(&unregister_keyboard_work);
-			schedule_delayed_work(&unregister_keyboard_work, msecs_to_jiffies(timeout * 1000));
+			schedule_delayed_work(&unregister_keyboard_work,
+					      msecs_to_jiffies(timeout * 1000));
 			time_to_unregister = new_timeout;
 		}
 	} else {
@@ -127,7 +130,8 @@ static void register_keyboard_locked(int timeout)
  *
  * @note: must be called with dev_mutex locked
  */
-static void unregister_keyboard_locked(void)
+static void
+unregister_keyboard_locked(void)
 {
 	/* Cancel delayed work for automatic unregistration */
 	cancel_delayed_work(&unregister_keyboard_work);
@@ -138,7 +142,8 @@ static void unregister_keyboard_locked(void)
 	}
 }
 
-static void unregister_keyboard_handler(struct work_struct *work)
+static void
+unregister_keyboard_handler(struct work_struct *work)
 {
 	mutex_lock(&dev_mutex);
 	/* Check that our work was not already running while updating timeout */
@@ -149,12 +154,22 @@ static void unregister_keyboard_handler(struct work_struct *work)
 	mutex_unlock(&dev_mutex);
 }
 
-static int keyboard_state( char *buffer, char **start, off_t offset, int count, int *eof, void *data)
+static int
+keyboard_state(char *buffer,
+	       char **start,
+	       off_t offset,
+	       int count,
+	       int *eof,
+	       void *data)
 {
 	int len;
 
-	/* Implemented way to return data is "way 0" described in fs/proc/generic.c */
-	/* We always send everything on the first call (offset=0), and just need 3 bytes */
+	/*
+	 * Implemented way to return data is "way 0" described in
+	 * fs/proc/generic.c.
+	 * We always send everything on the first call (offset=0),
+	 * and just need 3 bytes
+	 */
 	if (offset > 0 || count < 3) {
 		*eof = 1;
 		return 0;
@@ -168,32 +183,37 @@ static int keyboard_state( char *buffer, char **start, off_t offset, int count, 
 	return len;
 }
 
-static int enable_keyboard(struct file *file, const char __user *buffer, unsigned long count, void *data)
+static int
+enable_keyboard(struct file *file,
+		const char __user *buffer,
+		unsigned long count,
+		void *data)
 {
 	int enable = -1;
 	int timeout = 0;
 	int items;
 
 	items = sscanf(buffer, "%d %d", &enable, &timeout);
-	if (items < 1 || items > 2 || enable < 0 ) {
+	if (items < 1 || items > 2 || enable < 0) {
 		printk(KERN_ERR "Malformed value to enable/disable keyboard\n");
 		return -1;
 	}
 
 	mutex_lock(&dev_mutex);
-	if (enable > 0) {
-		/* Enable the keyboard */
+	if (enable > 0) /* Enable the keyboard */
 		register_keyboard_locked(timeout);
-	} else {
-		/* Disable the keyboard */
+	else /* Disable the keyboard */
 		unregister_keyboard_locked();
-	}
 	mutex_unlock(&dev_mutex);
 
 	return count;
 }
 
-static int send_key(struct file *file, const char __user *buffer, unsigned long count, void *data)
+static int
+send_key(struct file *file,
+	 const char __user *buffer,
+	 unsigned long count,
+	 void *data)
 {
 	int key = -1;
 	int value = -1;
@@ -215,7 +235,8 @@ static int send_key(struct file *file, const char __user *buffer, unsigned long 
 	return count;
 }
 
-static int __init mvp_keypad_init(void)
+static int __init
+mvp_keypad_init(void)
 {
 	int ret = 0;
 	struct proc_dir_entry *enable_file, *key_file;
@@ -253,7 +274,8 @@ error:
 	return ret;
 }
 
-static void __exit mvp_keypad_exit(void)
+static void __exit
+mvp_keypad_exit(void)
 {
 	remove_proc_entry(SEND_KEY_FILE, dir);
 	remove_proc_entry(ENABLE_FILE, dir);
