@@ -100,8 +100,8 @@ DECLARE_DELAYED_WORK(uart_awake_wq, bluesleep_uart_awake_work);
 #define bluesleep_tx_idle() schedule_delayed_work(&sleep_workqueue, 0)
 #define bluesleep_uart_work() schedule_delayed_work(&uart_awake_wq, 0)
 
-/* 0.5 second timeout */
-#define TX_TIMER_INTERVAL	1
+/* 3 second timeout */
+#define TX_TIMER_INTERVAL	3
 
 /* state variable names and bit positions */
 #define BT_PROTO	 0x01
@@ -499,7 +499,7 @@ static ssize_t bluesleep_write_proc_lpm
 	if (b == '0') {
 		BT_ERR("(bluesleep_write_proc_lpm) Unreg HCI notifier.");
 		/* HCI_DEV_UNREG */
-		bt_enabled = false;
+		//bt_enabled = false;
 		bluesleep_stop();
 	} else if (b == '1') {
 		BT_ERR("(bluesleep_write_proc_lpm) Reg HCI notifier.");
@@ -513,7 +513,7 @@ static ssize_t bluesleep_write_proc_lpm
 	} else if (b == '2') {
 		BT_ERR("don`t control ext_wake & uart clk");
 		if (bt_enabled) {
-			bt_enabled = false;
+			//bt_enabled = false;
 			bluesleep_abnormal_stop();
 		}
 	}
