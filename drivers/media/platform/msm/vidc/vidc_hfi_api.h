@@ -1155,9 +1155,6 @@ struct hfi_device {
 			enum session_type type, enum mem_type mtype);
 	int (*unvote_bus)(void *dev, enum session_type type,
 		enum mem_type mtype);
-	int (*unset_ocmem)(void *dev);
-	int (*alloc_ocmem)(void *dev, unsigned long size);
-	int (*free_ocmem)(void *dev);
 	int (*iommu_get_domain_partition)(void *dev, u32 flags, u32 buffer_type,
 			int *domain_num, int *partition_num);
 	int (*load_fw)(void *dev);
@@ -1170,6 +1167,7 @@ struct hfi_device {
 	int (*session_clean)(void *sess);
 	int (*get_core_capabilities)(void);
 	int (*power_enable)(void *dev);
+	int (*suspend)(void *dev);
 };
 
 typedef void (*hfi_cmd_response_callback) (enum command_response cmd,

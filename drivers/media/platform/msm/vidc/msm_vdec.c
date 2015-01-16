@@ -21,8 +21,8 @@
 
 #define MSM_VDEC_DVC_NAME "msm_vdec_8974"
 #define MIN_NUM_OUTPUT_BUFFERS 4
-#define MAX_NUM_OUTPUT_BUFFERS 6
-#define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8080
+#define MAX_NUM_OUTPUT_BUFFERS VB2_MAX_FRAME
+#define DEFAULT_VIDEO_CONCEAL_COLOR_BLACK 0x8010
 #define MB_SIZE_IN_PIXEL (16 * 16)
 
 #define TZ_DYNAMIC_BUFFER_FEATURE_ID 12
@@ -1400,7 +1400,7 @@ int msm_vdec_cmd(struct msm_vidc_inst *inst, struct v4l2_decoder_cmd *dec)
 	case V4L2_DEC_QCOM_CMD_FLUSH:
 		if (core->state != VIDC_CORE_INVALID &&
 			inst->state ==  MSM_VIDC_CORE_INVALID) {
-			rc = msm_comm_recover_from_session_error(inst);
+			rc = msm_comm_kill_session(inst);
 			if (rc)
 				dprintk(VIDC_ERR,
 					"Failed to recover from session_error: %d\n",
@@ -1415,7 +1415,7 @@ int msm_vdec_cmd(struct msm_vidc_inst *inst, struct v4l2_decoder_cmd *dec)
 	case V4L2_DEC_CMD_STOP:
 		if (core->state != VIDC_CORE_INVALID &&
 			inst->state ==  MSM_VIDC_CORE_INVALID) {
-			rc = msm_comm_recover_from_session_error(inst);
+			rc = msm_comm_kill_session(inst);
 			if (rc)
 				dprintk(VIDC_ERR,
 					"Failed to recover from session_error: %d\n",

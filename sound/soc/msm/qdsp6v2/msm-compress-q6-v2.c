@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -488,6 +488,12 @@ static void compr_event_handler(uint32_t opcode,
 		snd_compr_fragment_elapsed(cstream);
 		prtd->copied_total = prtd->bytes_received;
 		atomic_set(&prtd->error, 1);
+		wake_up(&prtd->drain_wait);
+		if (atomic_read(&prtd->eos)) {
+			pr_debug("%s:unblock eos wait queues", __func__);
+			wake_up(&prtd->eos_wait);
+			atomic_set(&prtd->eos, 0);
+		}
 		spin_unlock_irqrestore(&prtd->lock, flags);
 		break;
 	default:
@@ -1101,13 +1107,18 @@ static int msm_compr_drain_buffer(struct msm_compr_audio *prtd,
 	rc = wait_event_interruptible(prtd->drain_wait,
 					prtd->drain_ready ||
 					prtd->cmd_interrupt ||
-					atomic_read(&prtd->xrun));
-	pr_debug("%s: out of buffer drain wait\n", __func__);
+					atomic_read(&prtd->xrun) ||
+					atomic_read(&prtd->error));
+	pr_debug("%s: out of buffer drain wait with ret %d\n", __func__, rc);
 	spin_lock_irqsave(&prtd->lock, *flags);
 	if (prtd->cmd_interrupt) {
 		pr_debug("%s: buffer drain interrupted by flush)\n", __func__);
 		rc = -EINTR;
 		prtd->cmd_interrupt = 0;
+	}
+	if (atomic_read(&prtd->error)) {
+		pr_err("%s: Got RESET EVENTS notification, return\n", __func__);
+		rc = -ENETRESET;
 	}
 	return rc;
 }
@@ -1402,7 +1413,9 @@ static int msm_compr_trigger(struct snd_compr_stream *cstream, int cmd)
 
 		/* Wait indefinitely for  DRAIN. Flush can also signal this*/
 		rc = wait_event_interruptible(prtd->eos_wait,
-					      (prtd->cmd_ack || prtd->cmd_interrupt));
+						(prtd->cmd_ack ||
+						prtd->cmd_interrupt ||
+						atomic_read(&prtd->error)));
 
 		if (rc < 0)
 			pr_err("%s: EOS wait failed\n", __func__);
@@ -1412,6 +1425,11 @@ static int msm_compr_trigger(struct snd_compr_stream *cstream, int cmd)
 
 		if (prtd->cmd_interrupt)
 			rc = -EINTR;
+
+		if (atomic_read(&prtd->error)) {
+			pr_err("%s: Got RESET EVENTS notification, return\n", __func__);
+			rc = -ENETRESET;
+		}
 
 		/*FIXME : what if a flush comes while PC is here */
 		if (rc == 0) {
