@@ -24,6 +24,7 @@
 #if defined(CONFIG_ISDBT_ANT_DET)
 static struct wake_lock isdbt_ant_wlock;
 #endif
+static struct wake_lock isdbt_wlock;
 
 #include "fc8150.h"
 #include "bbm.h"
@@ -43,6 +44,7 @@ struct ISDBT_INIT_INFO_T *hInit;
 #define FC8150_NAME		"isdbt"
 static struct isdbt_platform_data *isdbt_pdata;
 
+u8 static_ringbuffer[RING_BUFFER_SIZE];
 
 enum ISDBT_MODE driver_mode = ISDBT_POWEROFF;
 static DEFINE_MUTEX(ringbuffer_lock);
@@ -428,7 +430,8 @@ int isdbt_open(struct inode *inode, struct file *filp)
 	printk("isdbt_open. \n");
 	hOpen = kmalloc(sizeof(struct ISDBT_OPEN_INFO_T), GFP_KERNEL);
 
-	hOpen->buf = kmalloc(RING_BUFFER_SIZE, GFP_KERNEL);
+//	hOpen->buf = kmalloc(RING_BUFFER_SIZE, GFP_KERNEL); //Fix for PLM P140326-05955
+	hOpen->buf = &static_ringbuffer[0];
 	hOpen->isdbttype = 0;
 
 	list_add(&(hOpen->hList), &(hInit->hHead));
@@ -443,6 +446,7 @@ int isdbt_open(struct inode *inode, struct file *filp)
 	fci_ringbuffer_init(&hOpen->RingBuffer, hOpen->buf, RING_BUFFER_SIZE);
 
 	filp->private_data = hOpen;
+	wake_lock(&isdbt_wlock);
 
 	return 0;
 }
@@ -498,8 +502,9 @@ int isdbt_release(struct inode *inode, struct file *filp)
 	hOpen->isdbttype = 0;
 
 	list_del(&(hOpen->hList));
-	kfree(hOpen->buf);
+	/* kfree(hOpen->buf); */
 	kfree(hOpen);
+	wake_unlock(&isdbt_wlock);
 
 	return 0;
 }
@@ -1066,9 +1071,10 @@ isdbt_gpio_init();
 		isdbt_kthread = kthread_run(isdbt_thread
 			, (void *)hInit, "isdbt_thread");
 	}
+	wake_lock_init(&isdbt_wlock, WAKE_LOCK_SUSPEND, "isdbt_wlock");
 
 	INIT_LIST_HEAD(&(hInit->hHead));
-#if defined(CONFIG_ISDBT_ANT_DET)	
+#if defined(CONFIG_ISDBT_ANT_DET)
 
 	wake_lock_init(&isdbt_ant_wlock, WAKE_LOCK_SUSPEND, "isdbt_ant_wlock");
 
@@ -1101,6 +1107,7 @@ static int isdbt_remove(struct platform_device *pdev)
 	isdbt_ant_det_irq_set(false);
 	wake_lock_destroy(&isdbt_ant_wlock);
 #endif
+	wake_lock_destroy(&isdbt_wlock);
 	return 0;
 }
 
