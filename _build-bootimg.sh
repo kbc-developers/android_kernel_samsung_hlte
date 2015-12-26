@@ -1,7 +1,11 @@
 #!/bin/bash
 
 KERNEL_DIR=$PWD
+if [ "$BUILD_TARGET" = 'RECO' ]; then
+IMAGE_NAME=recovery
+else
 IMAGE_NAME=boot
+fi
 
 BIN_DIR=out/$TARGET_DEVICE/$BUILD_TARGET/bin
 OBJ_DIR=out/$TARGET_DEVICE/$BUILD_TARGET/obj
