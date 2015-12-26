@@ -49,8 +49,12 @@ if [ "$BUILD_SELECT" = 'all' -o "$BUILD_SELECT" = 'a' ]; then
   echo ""
   echo "=====> CLEANING..."
   make clean
-  cp -f ./arch/arm/configs/$KERNEL_DEFCONFIG $OBJ_DIR/.config
-  make -C $PWD O=$OBJ_DIR oldconfig || exit -1
+  if [ -z KERNEL_VARIANT_DEFCONFIG ]; then
+      cp -f ./arch/arm/configs/$KERNEL_DEFCONFIG $OBJ_DIR/.config
+    make -C $PWD O=$OBJ_DIR oldconfig || exit -1
+  else
+    make -C $PWD O=$OBJ_DIR VARIANT_DEFCONFIG=$KERNEL_VARIANT_DEFCONFIG $KERNEL_DEFCONFIG SELINUX_DEFCONFIG=selinux_defconfig || exit -1
+  fi
 fi
 
 if [ "$BUILD_SELECT" != 'image' -a "$BUILD_SELECT" != 'i' ]; then
