@@ -12,12 +12,11 @@
 
 &soc {
 	qcom,ion {
-
 		qcom,ion-heap@23 { /* OTHER PIL HEAP */
 			compatible = "qcom,msm-ion-reserve";
 			reg = <23>;
 			qcom,heap-align = <0x1000>;
-			qcom,memory-fixed = <0x04900000 0x2100000>;
+			qcom,memory-fixed = <0x04d00000 0x1d00000>;
 			qcom,ion-heap-type = "CARVEOUT";
 		};
 
@@ -26,6 +25,15 @@
 			reg = <26>;
 			qcom,heap-align = <0x1000>;
 			qcom,memory-fixed = <0x08000000 0x5100000>;
+			qcom,ion-heap-type = "CARVEOUT";
+		};
+
+		qcom,ion-heap@30 { /* CAMERA HEAP */
+			compatible = "qcom,msm-ion-reserve";
+			reg = <30>;
+			qcom,heap-align = <0x1000>;
+			qcom,memory-reservation-type = "EBI1"; /* reserve EBI memory */
+			qcom,memory-reservation-size = <0x9600000>;
 			qcom,ion-heap-type = "CARVEOUT";
 		};
 	};
