@@ -18,7 +18,11 @@
 #include <sound/voice_params.h>
 
 #define MAX_VOC_PKT_SIZE 642
+#ifdef CONFIG_DSDA_VIA_UART
+#define SESSION_NAME_LEN 21
+#else
 #define SESSION_NAME_LEN 20
+#endif /* CONFIG_DSDA_VIA_UART */
 #define NUM_OF_MEMORY_BLOCKS 1
 #define NUM_OF_BUFFERS 2
 /*
@@ -520,9 +524,6 @@ struct vss_imemory_cmd_unmap_t {
 #define VSS_IRECORD_PORT_ID_DEFAULT			0x0000FFFF
 /* Default AFE port ID. */
 
-#define VSS_IRECORD_PORT_ID_TX_RX			0x00008003
-/* Port explicitly identifying TX and RX streams */
-
 #define VSS_IRECORD_TAP_POINT_NONE			0x00010F78
 /* Indicates no tapping for specified path. */
 
@@ -809,9 +810,11 @@ struct oem_dha_parm_send_t {
 
 struct oem_dha_parm_send_cmd {
 	struct apr_hdr hdr;
+#if !defined(CONFIG_MACH_S3VE3G_EUR) && !defined(CONFIG_MACH_MS01_EUR_3G) && !defined(CONFIG_MACH_MS01_EUR_LTE) && !defined(CONFIG_MACH_MS01_KOR_LTE) && !defined(CONFIG_DSDA_VIA_UART)
 	uint32_t mem_handle;
 	uint64_t mem_address;
 	uint32_t mem_size;
+#endif
 	struct oem_dha_parm_send_t dha_send;
 } __packed;
 #endif /* CONFIG_SEC_DHA_SOL_MAL*/
@@ -1527,8 +1530,6 @@ int voc_set_tx_mute(uint32_t session_id, uint32_t dir, uint32_t mute,
 int voc_set_device_mute(uint32_t session_id, uint32_t dir, uint32_t mute,
 			uint32_t ramp_duration);
 int voc_get_rx_device_mute(uint32_t session_id);
-int voc_disable_cvp(uint32_t session_id);
-int voc_enable_cvp(uint32_t session_id);
 int voc_set_route_flag(uint32_t session_id, uint8_t path_dir, uint8_t set);
 uint8_t voc_get_route_flag(uint32_t session_id, uint8_t path_dir);
 int voc_enable_dtmf_rx_detection(uint32_t session_id, uint32_t enable);
@@ -1548,9 +1549,13 @@ uint32_t voc_get_session_id(char *name);
 int voc_start_playback(uint32_t set, uint16_t port_id);
 int voc_start_record(uint32_t port_id, uint32_t set, uint32_t session_id);
 int voice_get_idx_for_session(u32 session_id);
-int voc_get_loopback_enable(void);
-void voc_set_loopback_enable(int loopback_enable);
 int voc_set_ext_ec_ref(uint16_t port_id, bool state);
 int voc_update_amr_vocoder_rate(uint32_t session_id);
+int voc_disable_device(uint32_t session_id);
+int voc_enable_device(uint32_t session_id);
 
+int voc_get_loopback_enable(void);
+void voc_set_loopback_enable(int loopback_enable);
+int voc_get_roaming_enable(void);
+void voc_set_roaming_enable(int loopback_enable);
 #endif

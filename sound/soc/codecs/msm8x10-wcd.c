@@ -189,6 +189,7 @@ struct msm8x10_wcd_priv {
 	 * end of impedance measurement
 	 */
 	struct list_head reg_save_restore;
+	u32 micb_en_count;
 };
 
 static unsigned short rx_digital_gain_reg[] = {
@@ -1199,6 +1200,13 @@ static const struct snd_kcontrol_new msm8x10_wcd_snd_controls[] = {
 			  MSM8X10_WCD_A_CDC_TX2_VOL_CTL_GAIN,
 			  -84, 40, digital_gain),
 
+	SOC_SINGLE_TLV("ADC1 Volume", MSM8X10_WCD_A_TX_1_EN, 2,
+					19, 0, analog_gain),
+	SOC_SINGLE_TLV("ADC2 Volume", MSM8X10_WCD_A_TX_2_EN, 2,
+					19, 0, analog_gain),
+	SOC_SINGLE_TLV("ADC3 Volume", MSM8X10_WCD_A_TX_3_EN, 2,
+					19, 0, analog_gain),
+
 	SOC_SINGLE_S8_TLV("IIR1 INP1 Volume",
 			  MSM8X10_WCD_A_CDC_IIR1_GAIN_B1_CTL,
 			  -84, 40, digital_gain),
@@ -1600,6 +1608,25 @@ static int msm8x10_wcd_codec_enable_spk_pa(struct snd_soc_dapm_widget *w,
 				     struct snd_kcontrol *kcontrol, int event)
 {
 	dev_dbg(w->codec->dev, "%s %d %s\n", __func__, event, w->name);
+
+#if defined(CONFIG_MACH_KANAS3G_CTC)
+	switch (event) {
+		case SND_SOC_DAPM_PRE_PMU:
+			dev_dbg(w->codec->dev, "Before power on PA,sleep 5 ms\n");
+			msleep(15);
+		break;
+
+		case SND_SOC_DAPM_POST_PMD:
+			dev_dbg(w->codec->dev, "after power down PA,sleep 5 ms\n");
+			msleep(15);
+		break;
+
+		default:
+
+		break;
+	}
+#endif
+	
 	return 0;
 }
 
@@ -1697,6 +1724,9 @@ static int msm8x10_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(codec, micb_int_reg, 0x04, 0x04);
 		snd_soc_update_bits(codec, MSM8X10_WCD_A_MICB_1_CTL,
 					0x80, 0x80);
+		msm8x10_wcd->micb_en_count++;
+		pr_debug("%s micb_en_count : %d", __func__,
+				msm8x10_wcd->micb_en_count);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		usleep_range(20000, 20100);
@@ -1704,6 +1734,10 @@ static int msm8x10_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		wcd9xxx_resmgr_notifier_call(&msm8x10_wcd->resmgr, e_post_on);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+		if (msm8x10_wcd->micb_en_count > 0)
+			msm8x10_wcd->micb_en_count--;
+		pr_debug("%s micb_en_count : %d", __func__,
+				msm8x10_wcd->micb_en_count);
 		snd_soc_update_bits(codec, MSM8X10_WCD_A_MICB_1_CTL,
 					0x80, 0x00);
 		/* Let MBHC module know so micbias switch to be off */
@@ -2346,6 +2380,10 @@ static int msm8x10_wcd_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
 	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		snd_soc_update_bits(w->codec, MSM8X10_WCD_A_CDC_ANA_CLK_CTL,
+				0x4, 0x4);
+		break;
 	case SND_SOC_DAPM_POST_PMU:
 		dev_dbg(w->codec->dev,
 			"%s: Sleeping 20ms after enabling EAR PA\n",
@@ -2356,6 +2394,8 @@ static int msm8x10_wcd_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 		dev_dbg(w->codec->dev,
 			"%s: Sleeping 20ms after disabling EAR PA\n",
 			__func__);
+		snd_soc_update_bits(w->codec, MSM8X10_WCD_A_CDC_ANA_CLK_CTL,
+				0x4, 0x0);
 		msleep(20);
 		break;
 	}
@@ -2367,7 +2407,7 @@ static const struct snd_soc_dapm_widget msm8x10_wcd_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("EAR"),
 
 	SND_SOC_DAPM_PGA_E("EAR PA", MSM8X10_WCD_A_RX_EAR_EN, 4, 0, NULL, 0,
-			msm8x10_wcd_codec_enable_ear_pa,
+			msm8x10_wcd_codec_enable_ear_pa, SND_SOC_DAPM_PRE_PMU |
 			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
 
 	SND_SOC_DAPM_MIXER("DAC1", MSM8X10_WCD_A_RX_EAR_EN, 6, 0, dac1_switch,
@@ -2456,7 +2496,7 @@ static const struct snd_soc_dapm_widget msm8x10_wcd_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("HPHL CLK", MSM8X10_WCD_A_CDC_ANA_CLK_CTL,
 		1, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("EAR CLK", MSM8X10_WCD_A_CDC_ANA_CLK_CTL,
-		2, 0, NULL, 0),
+		6, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("LINEOUT CLK", MSM8X10_WCD_A_CDC_ANA_CLK_CTL,
 		3, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("SPK CLK", MSM8X10_WCD_A_CDC_ANA_CLK_CTL,
@@ -2635,8 +2675,9 @@ static const struct msm8x10_wcd_reg_mask_val msm8x10_wcd_reg_defaults[] = {
 	/* Enable pulldown to reduce leakage */
 #if defined(CONFIG_MACH_CS02VE)||defined(CONFIG_MACH_KYLEVE2_CTC) || defined(CONFIG_SEC_HEAT_PROJECT)
 	MSM8X10_WCD_REG_VAL(MSM8X10_WCD_A_MICB_1_CTL, 0x92),
+#else
+	MSM8X10_WCD_REG_VAL(MSM8X10_WCD_A_MICB_1_CTL, 0x82),
 #endif
-
 	MSM8X10_WCD_REG_VAL(MSM8X10_WCD_A_TX_COM_BIAS, 0xE0),
 	/* Keep the same default gain settings for TX paths */
 	MSM8X10_WCD_REG_VAL(MSM8X10_WCD_A_TX_1_EN, 0x32),
@@ -2817,11 +2858,13 @@ static int msm8x10_wcd_enable_ext_mb_source(struct snd_soc_codec *codec,
 	return ret;
 }
 
+#ifndef CONFIG_SAMSUNG_JACK
 static int msm8x10_wcd_enable_mbhc_micbias(struct snd_soc_codec *codec,
 					   bool enable,
 					   enum wcd9xxx_micbias_num micb_num)
 {
 	int rc;
+	struct msm8x10_wcd_priv *msm8x10_wcd = snd_soc_codec_get_drvdata(codec);
 
 	if (micb_num != MBHC_MICBIAS1) {
 		rc = -EINVAL;
@@ -2831,13 +2874,18 @@ static int msm8x10_wcd_enable_mbhc_micbias(struct snd_soc_codec *codec,
 	if (enable)
 		rc = snd_soc_dapm_force_enable_pin(&codec->dapm,
 			DAPM_MICBIAS_EXTERNAL_STANDALONE);
-	else
+	else {
+		if (msm8x10_wcd->micb_en_count > 1) {
+			msm8x10_wcd->micb_en_count--;
+			pr_debug("%s micb_en_count : %d", __func__,
+					msm8x10_wcd->micb_en_count);
+			return 0;
+		}
 		rc = snd_soc_dapm_disable_pin(&codec->dapm,
 			DAPM_MICBIAS_EXTERNAL_STANDALONE);
+	}
 	snd_soc_dapm_sync(&codec->dapm);
 
-	snd_soc_update_bits(codec, WCD9XXX_A_MICB_1_CTL,
-		0x80, enable ? 0x80 : 0x00);
 err:
 	if (rc)
 		pr_debug("%s: Failed to force %s micbias", __func__,
@@ -2847,6 +2895,7 @@ err:
 			enable ? "enable" : "disable");
 	return rc;
 }
+#endif
 
 static void msm8x10_wcd_micb_internal(struct snd_soc_codec *codec, bool on)
 {
@@ -3110,10 +3159,9 @@ int msm8x10_wcd_hs_detect(struct snd_soc_codec *codec,
 		return -EINVAL;
 	}
 	wcd->mbhc_cfg = mbhc_cfg;
-	schedule_delayed_work(&wcd->hs_detect_work,
-			msecs_to_jiffies(5000));
+	wcd9xxx_mbhc_start(&wcd->mbhc, wcd->mbhc_cfg);
 	#endif
-	return wcd9xxx_mbhc_start(&wcd->mbhc, wcd->mbhc_cfg);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(msm8x10_wcd_hs_detect);
 
@@ -3148,9 +3196,25 @@ static int msm8x10_wcd_device_down(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static const struct wcd9xxx_mbhc_intr cdc_intr_ids = {
+	.poll_plug_rem = MSM8X10_WCD_IRQ_MBHC_REMOVAL,
+	.shortavg_complete = MSM8X10_WCD_IRQ_MBHC_SHORT_TERM,
+	.potential_button_press = MSM8X10_WCD_IRQ_MBHC_PRESS,
+	.button_release = MSM8X10_WCD_IRQ_MBHC_RELEASE,
+	.dce_est_complete = MSM8X10_WCD_IRQ_MBHC_POTENTIAL,
+	.insertion = MSM8X10_WCD_IRQ_MBHC_INSERTION,
+	.hph_left_ocp = MSM8X10_WCD_IRQ_HPH_PA_OCPL_FAULT,
+	.hph_right_ocp = MSM8X10_WCD_IRQ_HPH_PA_OCPR_FAULT,
+	.hs_jack_switch = MSM8X10_WCD_IRQ_MBHC_HS_DET,
+};
+
 static int msm8x10_wcd_device_up(struct snd_soc_codec *codec)
 {
-	dev_dbg(codec->dev, "%s: device up!\n", __func__);
+	int ret = 0;
+	struct msm8x10_wcd_priv *msm8x10_wcd_priv =
+					snd_soc_codec_get_drvdata(codec);
+
+	dev_err(codec->dev, "%s: device up!\n", __func__);
 
 	snd_soc_card_change_online_state(codec->card, 1);
 	/* delay is required to make sure sound card state updated */
@@ -3159,8 +3223,26 @@ static int msm8x10_wcd_device_up(struct snd_soc_codec *codec)
 	mutex_lock(&codec->mutex);
 
 	msm8x10_wcd_bringup(codec);
-	msm8x10_wcd_codec_init_reg(codec);
+
 	msm8x10_wcd_update_reg_defaults(codec);
+
+	msm8x10_wcd_codec_init_reg(codec);
+
+	wcd9xxx_resmgr_post_ssr(&msm8x10_wcd_priv->resmgr);
+
+	wcd9xxx_mbhc_deinit(&msm8x10_wcd_priv->mbhc);
+
+	ret = wcd9xxx_mbhc_init(&msm8x10_wcd_priv->mbhc,
+				&msm8x10_wcd_priv->resmgr,
+				codec, msm8x10_wcd_enable_mbhc_micbias,
+				&mbhc_cb, &cdc_intr_ids,
+				HELICON_MCLK_CLK_9P6MHZ, true);
+	if (ret)
+		dev_err(codec->dev, "%s: Failed to initialize mbhc\n",
+			__func__);
+	else
+		wcd9xxx_mbhc_start(&msm8x10_wcd_priv->mbhc,
+				msm8x10_wcd_priv->mbhc.mbhc_cfg);
 
 	mutex_unlock(&codec->mutex);
 
@@ -3198,18 +3280,6 @@ static int adsp_state_callback(struct notifier_block *nb, unsigned long value,
 static struct notifier_block adsp_state_notifier_block = {
 	.notifier_call = adsp_state_callback,
 	.priority = -INT_MAX,
-};
-
-static const struct wcd9xxx_mbhc_intr cdc_intr_ids = {
-	.poll_plug_rem = MSM8X10_WCD_IRQ_MBHC_REMOVAL,
-	.shortavg_complete = MSM8X10_WCD_IRQ_MBHC_SHORT_TERM,
-	.potential_button_press = MSM8X10_WCD_IRQ_MBHC_PRESS,
-	.button_release = MSM8X10_WCD_IRQ_MBHC_RELEASE,
-	.dce_est_complete = MSM8X10_WCD_IRQ_MBHC_POTENTIAL,
-	.insertion = MSM8X10_WCD_IRQ_MBHC_INSERTION,
-	.hph_left_ocp = MSM8X10_WCD_IRQ_HPH_PA_OCPL_FAULT,
-	.hph_right_ocp = MSM8X10_WCD_IRQ_HPH_PA_OCPR_FAULT,
-	.hs_jack_switch = MSM8X10_WCD_IRQ_MBHC_HS_DET,
 };
 
 static int msm8x10_wcd_handle_pdata(struct snd_soc_codec *codec,
@@ -3316,6 +3386,8 @@ static int msm8x10_wcd_codec_probe(struct snd_soc_codec *codec)
 	atomic_set(&msm8x10_wcd_priv->on_demand_list[ON_DEMAND_MICBIAS].ref, 0);
 
     #ifndef CONFIG_SAMSUNG_JACK
+		msm8x10_wcd_priv->micb_en_count = 0;
+
 	ret = wcd9xxx_mbhc_init(&msm8x10_wcd_priv->mbhc,
 				&msm8x10_wcd_priv->resmgr,
 				codec, msm8x10_wcd_enable_mbhc_micbias,

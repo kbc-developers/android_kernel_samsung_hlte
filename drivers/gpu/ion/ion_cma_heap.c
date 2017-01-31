@@ -22,6 +22,7 @@
 #include <linux/err.h>
 #include <linux/dma-mapping.h>
 #include <linux/msm_ion.h>
+#include <linux/highmem.h>
 #include <mach/iommu_domains.h>
 
 #include <asm/cacheflush.h>
@@ -44,10 +45,10 @@ static int cma_heap_has_outer_cache;
  * This function could be replace by dma_common_get_sgtable
  * as soon as it will avalaible.
  */
-static int ion_cma_get_sgtable(struct device *dev, struct sg_table *sgt,
-			       void *cpu_addr, dma_addr_t handle, size_t size)
+int ion_cma_get_sgtable(struct device *dev, struct sg_table *sgt,
+			void *cpu_addr, dma_addr_t handle, size_t size)
 {
-	struct page *page = pfn_to_page(PFN_DOWN(handle));
+	struct page *page = phys_to_page(handle);
 	int ret;
 
 	ret = sg_alloc_table(sgt, 1, GFP_KERNEL);
@@ -100,6 +101,11 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	/* keep this for memory release */
 	buffer->priv_virt = info;
 	dev_dbg(dev, "Allocate buffer %p\n", buffer);
+	if (heap->id == ION_QSECOM_HEAP_ID ) {
+		// printk("[ION_alloc id==27|QSEECOM] 0x%p/0x%x => kmap_flush_unused\n", (void*)info->handle, (unsigned int)len);
+		kmap_flush_unused();
+	}
+
 	return 0;
 
 err:
@@ -137,16 +143,16 @@ static int ion_cma_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 	return 0;
 }
 
-static struct sg_table *ion_cma_heap_map_dma(struct ion_heap *heap,
-					     struct ion_buffer *buffer)
+struct sg_table *ion_cma_heap_map_dma(struct ion_heap *heap,
+					 struct ion_buffer *buffer)
 {
 	struct ion_cma_buffer_info *info = buffer->priv_virt;
 
 	return info->table;
 }
 
-static void ion_cma_heap_unmap_dma(struct ion_heap *heap,
-				   struct ion_buffer *buffer)
+void ion_cma_heap_unmap_dma(struct ion_heap *heap,
+			       struct ion_buffer *buffer)
 {
 	return;
 }

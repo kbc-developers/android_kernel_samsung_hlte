@@ -66,7 +66,7 @@ enum uart_core_type {
 	BLSP_HSUART,
 };
 
-#if defined(CONFIG_MACH_HLTEDCM)|| defined(CONFIG_MACH_HLTEKDI)
+#if defined(CONFIG_MACH_KLTE_JPN) && defined(CONFIG_SEC_FACTORY)
 #define CONFIG_DUMP_UART_PACKET_DISABLE 1
 #endif
 
@@ -1486,7 +1486,6 @@ static void wait_for_xmitr(struct uart_port *port)
 	struct msm_hsl_port *msm_hsl_port = UART_TO_MSM(port);
 	unsigned int vid = msm_hsl_port->ver_id;
 	int count = 0;
-
 	if (!(msm_hsl_read(port, regmap[vid][UARTDM_SR]) &
 			UARTDM_SR_TXEMT_BMSK)) {
 		while (!(msm_hsl_read(port, regmap[vid][UARTDM_ISR]) &
@@ -1497,8 +1496,13 @@ static void wait_for_xmitr(struct uart_port *port)
 			touch_nmi_watchdog();
 			cpu_relax();
 			if (++count == msm_hsl_port->tx_timeout) {
+				pr_info("%s: UART TX Stuck, Resetting TX\n",
+								__func__);
+				msm_hsl_write(port, RESET_TX,
+								regmap[vid][UARTDM_CR]);
+				mb();
 				dump_hsl_regs(port);
-				panic("MSM HSL wait_for_xmitr is stuck!");
+				break;
 			}
 		}
 		msm_hsl_write(port, CLEAR_TX_READY, regmap[vid][UARTDM_CR]);

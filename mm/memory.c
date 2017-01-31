@@ -60,6 +60,11 @@
 #include <linux/gfp.h>
 #include <linux/bug.h>
 
+#ifdef CONFIG_CMA_PINPAGE_MIGRATION
+#include <linux/mm_inline.h>
+#include <linux/migrate.h>
+#endif
+
 #include <asm/io.h>
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
@@ -189,10 +194,14 @@ static int tlb_next_batch(struct mmu_gather *tlb)
 		return 1;
 	}
 
+	if (tlb->batch_count == MAX_GATHER_BATCH_COUNT)
+		return 0;
+
 	batch = (void *)__get_free_pages(GFP_NOWAIT | __GFP_NOWARN, 0);
 	if (!batch)
 		return 0;
 
+	tlb->batch_count++;
 	batch->next = NULL;
 	batch->nr   = 0;
 	batch->max  = MAX_GATHER_BATCH;
@@ -219,6 +228,7 @@ void tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm, bool fullmm)
 	tlb->local.nr   = 0;
 	tlb->local.max  = ARRAY_SIZE(tlb->__pages);
 	tlb->active     = &tlb->local;
+	tlb->batch_count = 0;
 
 #ifdef CONFIG_HAVE_RCU_TABLE_FREE
 	tlb->batch = NULL;
@@ -838,14 +848,22 @@ out:
  */
 static inline void tima_l2group_ptep_set_wrprotect(struct mm_struct *mm,
 			unsigned long address, pte_t *ptep, 
-			tima_l2group_entry_t *tima_l2group_buffer,
+			tima_l2group_entry_t *tima_l2group_buffer1,
+			tima_l2group_entry_t *tima_l2group_buffer2,
 			unsigned long *tima_l2group_buffer_index)
 {
         pte_t old_pte = *ptep;
-        timal2group_set_pte_at(ptep, pte_wrprotect(old_pte),
-        			(((unsigned long) tima_l2group_buffer) + 
-				 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index))),
-				address, tima_l2group_buffer_index);
+	if (*tima_l2group_buffer_index < RKP_MAX_PGT2_ENTRIES) {
+		timal2group_set_pte_at(ptep, pte_wrprotect(old_pte),
+					(((unsigned long) tima_l2group_buffer1) + 
+					 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index))),
+					address, tima_l2group_buffer_index);
+	} else {
+		timal2group_set_pte_at(ptep, pte_wrprotect(old_pte),
+					(((unsigned long) tima_l2group_buffer2) + 
+					 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index - RKP_MAX_PGT2_ENTRIES))),
+					address, tima_l2group_buffer_index);
+	}
         //set_pte_at(mm, address, ptep, pte_wrprotect(old_pte)); /* Removed as grouping works */
 }
 
@@ -862,7 +880,8 @@ static inline unsigned long
 tima_l2group_copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		pte_t *dst_pte, pte_t *src_pte, struct vm_area_struct *vma,
 		unsigned long addr, int *rss, 
-		tima_l2group_entry_t *tima_l2group_buffer,
+		tima_l2group_entry_t *tima_l2group_buffer1,
+		tima_l2group_entry_t *tima_l2group_buffer2,
 		unsigned long *tima_l2group_buffer_index,
 		unsigned long tima_l2group_flag)
 #else
@@ -881,20 +900,20 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		if (!pte_file(pte)) {
 			swp_entry_t entry = pte_to_swp_entry(pte);
 
-			if (swap_duplicate(entry) < 0)
-				return entry.val;
+			if (likely(!non_swap_entry(entry))) {
+				if (swap_duplicate(entry) < 0)
+					return entry.val;
 
-			/* make sure dst_mm is on swapoff's mmlist. */
-			if (unlikely(list_empty(&dst_mm->mmlist))) {
-				spin_lock(&mmlist_lock);
-				if (list_empty(&dst_mm->mmlist))
-					list_add(&dst_mm->mmlist,
-						 &src_mm->mmlist);
-				spin_unlock(&mmlist_lock);
-			}
-			if (likely(!non_swap_entry(entry)))
+				/* make sure dst_mm is on swapoff's mmlist. */
+				if (unlikely(list_empty(&dst_mm->mmlist))) {
+					spin_lock(&mmlist_lock);
+					if (list_empty(&dst_mm->mmlist))
+						list_add(&dst_mm->mmlist,
+							 &src_mm->mmlist);
+					spin_unlock(&mmlist_lock);
+				}
 				rss[MM_SWAPENTS]++;
-			else if (is_migration_entry(entry)) {
+			} else if (is_migration_entry(entry)) {
 				page = migration_entry_to_page(entry);
 
 				if (PageAnon(page))
@@ -925,8 +944,7 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 		if (tima_l2group_flag) {
 			tima_l2group_ptep_set_wrprotect(src_mm, addr, src_pte,
-				tima_l2group_buffer, tima_l2group_buffer_index);
-			//(*tima_l2group_buffer_index)++;
+				tima_l2group_buffer1, tima_l2group_buffer2, tima_l2group_buffer_index);
 		}
 		else
 			ptep_set_wrprotect(src_mm, addr, src_pte);
@@ -971,8 +989,9 @@ int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	swp_entry_t entry = (swp_entry_t){0};
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
         unsigned long tima_l2group_flag = 0;
-        tima_l2group_entry_t *tima_l2group_buffer = NULL;
-        unsigned long tima_l2group_numb_entries;
+        tima_l2group_entry_t *tima_l2group_buffer1 = NULL;
+        tima_l2group_entry_t *tima_l2group_buffer2 = NULL;
+        unsigned long tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
         unsigned long tima_l2group_buffer_index = 0;
 #endif
 
@@ -989,41 +1008,18 @@ again:
 	orig_dst_pte = dst_pte;
 	arch_enter_lazy_mmu_mode();
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
-	/* Initialize all L2_GROUP variables */
+	/* Re-Initialize all L2_GROUP variables */
 	tima_l2group_flag= 0;
-	tima_l2group_buffer = NULL;
+	tima_l2group_buffer1 = NULL;
+	tima_l2group_buffer2 = NULL;
 	tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
 	tima_l2group_buffer_index = 0;
         /*
          * Lazy mmu mode for tima:
-         * 1-Define a memory area to hold the PTEs to be changed
-         * 2-Commit the changes right away to TIMA
-	 * 0x200 = 512 bytes which is 2 L2 pages. If grouped 
-	 * entries are <= 2, there is not much point in
-	 * grouping it, in which case follow the normal path. 
          */
-        if (tima_l2group_numb_entries > 2 && tima_l2group_numb_entries <= 0x200
-		&& tima_is_pg_protected((unsigned long)src_pte) == 1) {
-        	/*
-        	 * Kmalloc does not work in this function (causes crashes) so
-        	 * we use get_free_pages instead which mostly wastes some space
-        	 */
-		/*tima_l2group_buffer = kmalloc(sizeof(*tima_l2group_buffer) * 
-						tima_l2group_numb_entries, 
-						GFP_KERNEL | GFP_ATOMIC);*/
-		tima_l2group_buffer = (tima_l2group_entry_t *)
-					__get_free_pages(GFP_ATOMIC, 1);
-		if (tima_l2group_buffer == NULL) {
-			printk(KERN_ERR"TIMA -> L2GRP FAILED %lx %lx %lx\n",
-				addr, end, tima_l2group_numb_entries);
-		} else {
-			tima_l2group_flag = 1;
-			/* make sure index is reset here, or all
-			 * hell breaks loose!
-			 */
-			tima_l2group_buffer_index = 0;
-		}
-        }
+	init_tima_rkp_group_buffers(tima_l2group_numb_entries, src_pte,
+				&tima_l2group_flag, &tima_l2group_buffer_index,
+				&tima_l2group_buffer1, &tima_l2group_buffer2);
 #endif /* CONFIG_TIMA_RKP_L2_GROUP */
 
 	do {
@@ -1049,7 +1045,8 @@ again:
 		 */
 		entry.val = tima_l2group_copy_one_pte(dst_mm, src_mm, dst_pte, src_pte,
 							vma, addr, rss, 
-							tima_l2group_buffer,
+							tima_l2group_buffer1,
+							tima_l2group_buffer2,
 							&tima_l2group_buffer_index,
 							tima_l2group_flag);
 #else		
@@ -1063,19 +1060,17 @@ again:
 
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 	if (tima_l2group_flag) {
-		unsigned long buffer_va = (unsigned long) tima_l2group_buffer;
 		/*First: Flush the cache of the buffer to be read by the TZ side
 		 */
-		flush_dcache_page(virt_to_page(buffer_va));
-		flush_dcache_page(virt_to_page(buffer_va + PAGE_SIZE));
+		if(tima_l2group_buffer1)
+			flush_dcache_page(virt_to_page(tima_l2group_buffer1));
+		if(tima_l2group_buffer2)
+			flush_dcache_page(virt_to_page(tima_l2group_buffer2));
 
 		/*Second: Pass the buffer pointer and length to TIMA to commit the changes
 		 */
-		if (tima_l2group_buffer_index) {
-			timal2group_set_pte_commit(tima_l2group_buffer,
-						tima_l2group_buffer_index, (void*)src_pte);
-		}
-		free_pages((unsigned long) tima_l2group_buffer, 1);
+		write_tima_rkp_group_buffers(tima_l2group_buffer_index,
+			&tima_l2group_buffer1, &tima_l2group_buffer2);
 	}
 #endif /* CONFIG_TIMA_RKP_L2_GROUP */
 	arch_leave_lazy_mmu_mode();
@@ -1281,8 +1276,10 @@ again:
 			if (unlikely(page_mapcount(page) < 0))
 				print_bad_pte(vma, addr, ptent, page);
 			force_flush = !__tlb_remove_page(tlb, page);
-			if (force_flush)
+			if (force_flush) {
+				addr += PAGE_SIZE;
 				break;
+			}
 			continue;
 		}
 		/*
@@ -1562,6 +1559,96 @@ int zap_vma_ptes(struct vm_area_struct *vma, unsigned long address,
 }
 EXPORT_SYMBOL_GPL(zap_vma_ptes);
 
+#ifdef CONFIG_CMA_PINPAGE_MIGRATION
+static struct page *__alloc_nonmovable_userpage(struct page *page,
+				unsigned long private, int **result)
+{
+	return alloc_page(GFP_HIGHUSER);
+}
+
+static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long addr);
+
+static bool __need_migrate_cma_page(struct page *page,
+				struct vm_area_struct *vma,
+				unsigned long start, unsigned int flags)
+{
+	if (!(flags & FOLL_CMA))
+		return false;
+
+	if (!(flags & FOLL_GET))
+		return false;
+
+	if (!is_cma_pageblock(page))
+		return false;
+
+	if ((vma->vm_flags & VM_STACK_INCOMPLETE_SETUP) ==
+					VM_STACK_INCOMPLETE_SETUP)
+		return false;
+
+	migrate_prep_local();
+
+	if (!PageLRU(page))
+		return false;
+
+	return true;
+}
+
+static int __migrate_cma_pinpage(struct page *page, struct vm_area_struct *vma)
+{
+	struct zone *zone = page_zone(page);
+	struct list_head migratepages;
+	int tries = 0;
+	int ret = 0;
+
+	INIT_LIST_HEAD(&migratepages);
+
+	if (__isolate_lru_page(page, 0) != 0) {
+		pr_warn("%s: failed to isolate lru page\n", __func__);
+		dump_page(page);
+		return -EFAULT;
+	} else {
+		spin_lock_irq(&zone->lru_lock);
+		del_page_from_lru_list(zone, page, page_lru(page));
+		spin_unlock_irq(&zone->lru_lock);
+	}
+
+	list_add(&page->lru, &migratepages);
+	inc_zone_page_state(page, NR_ISOLATED_ANON + page_is_file_cache(page));
+
+	while (!list_empty(&migratepages) && tries++ < 5) {
+		ret = migrate_pages(&migratepages,
+			__alloc_nonmovable_userpage, 0, false, MIGRATE_SYNC);
+	}
+
+	if (ret < 0) {
+		putback_lru_pages(&migratepages);
+		pr_err("%s: migration failed %p[%#lx]\n", __func__,
+					page, page_to_pfn(page));
+		return -EFAULT;
+	}
+
+	return 0;
+}
+#endif
+
+static inline bool can_follow_write_pte(pte_t pte, struct page *page,
+					unsigned int flags)
+{
+	if (pte_write(pte))
+		return true;
+
+	/*
+	 * Make sure that we are really following CoWed page. We do not really
+	 * have to care about exclusiveness of the page because we only want
+	 * to ensure that once COWed page hasn't disappeared in the meantime
+	 * or it hasn't been merged to a KSM page.
+	 */
+	if ((flags & FOLL_FORCE) && (flags & FOLL_COW))
+		return page && PageAnon(page) && !PageKsm(page);
+
+	return false;
+}
+
 /**
  * follow_page - look up a page descriptor from a user-virtual address
  * @vma: vm_area_struct mapping @address
@@ -1644,10 +1731,13 @@ split_fallthrough:
 	pte = *ptep;
 	if (!pte_present(pte))
 		goto no_page;
-	if ((flags & FOLL_WRITE) && !pte_write(pte))
-		goto unlock;
 
 	page = vm_normal_page(vma, address, pte);
+	if ((flags & FOLL_WRITE) && !can_follow_write_pte(pte, page, flags)) {
+		pte_unmap_unlock(ptep, ptl);
+		return NULL;
+	}
+
 	if (unlikely(!page)) {
 		if ((flags & FOLL_DUMP) ||
 		    !is_zero_pfn(pte_pfn(pte)))
@@ -1655,6 +1745,29 @@ split_fallthrough:
 		page = pte_page(pte);
 	}
 
+#ifdef CONFIG_CMA_PINPAGE_MIGRATION
+	if (__need_migrate_cma_page(page, vma, address, flags)) {
+		pte_unmap_unlock(ptep, ptl);
+		if (__migrate_cma_pinpage(page, vma)) {
+			ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
+		} else {
+			struct page *old_page = page;
+
+			migration_entry_wait(mm, pmd, address);
+			ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
+			update_mmu_cache(vma, address, ptep);
+			pte = *ptep;
+			set_pte_at_notify(mm, address, ptep, pte);
+			page = vm_normal_page(vma, address, pte);
+			BUG_ON(!page);
+
+			pr_debug("cma: cma page %p[%#lx] migrated to new "
+					"page %p[%#lx]\n", old_page,
+					page_to_pfn(old_page),
+					page, page_to_pfn(page));
+		}
+	}
+#endif
 	if (flags & FOLL_GET)
 		get_page_foll(page);
 	if (flags & FOLL_TOUCH) {
@@ -1690,7 +1803,7 @@ split_fallthrough:
 			unlock_page(page);
 		}
 	}
-unlock:
+
 	pte_unmap_unlock(ptep, ptl);
 out:
 	return page;
@@ -1915,7 +2028,7 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 						else
 							return -EFAULT;
 					}
-					if (ret & VM_FAULT_SIGBUS)
+					if (ret & (VM_FAULT_SIGBUS | VM_FAULT_SIGSEGV))
 						return i ? i : -EFAULT;
 					BUG();
 				}
@@ -1937,17 +2050,13 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				 * The VM_FAULT_WRITE bit tells us that
 				 * do_wp_page has broken COW when necessary,
 				 * even if maybe_mkwrite decided not to set
-				 * pte_write. We can thus safely do subsequent
-				 * page lookups as if they were reads. But only
-				 * do so when looping for pte_write is futile:
-				 * in some cases userspace may also be wanting
-				 * to write to the gotten user page, which a
-				 * read fault here might prevent (a readonly
-				 * page might get reCOWed by userspace write).
+				 * pte_write. We cannot simply drop FOLL_WRITE
+				 * here because the COWed page might be gone by
+				 * the time we do the subsequent page lookups.
 				 */
 				if ((ret & VM_FAULT_WRITE) &&
 				    !(vma->vm_flags & VM_WRITE))
-					foll_flags &= ~FOLL_WRITE;
+					foll_flags |= FOLL_COW;
 
 				cond_resched();
 			}
@@ -2002,10 +2111,15 @@ int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long address, unsigned int fault_flags)
 {
 	struct vm_area_struct *vma;
+	vm_flags_t vm_flags;
 	int ret;
 
 	vma = find_extend_vma(mm, address);
 	if (!vma || address < vma->vm_start)
+		return -EFAULT;
+
+	vm_flags = (fault_flags & FAULT_FLAG_WRITE) ? VM_WRITE : VM_READ;
+	if (!(vm_flags & vma->vm_flags))
 		return -EFAULT;
 
 	ret = handle_mm_fault(mm, vma, address, fault_flags);
@@ -2014,7 +2128,7 @@ int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 			return -ENOMEM;
 		if (ret & (VM_FAULT_HWPOISON | VM_FAULT_HWPOISON_LARGE))
 			return -EHWPOISON;
-		if (ret & VM_FAULT_SIGBUS)
+		if (ret & (VM_FAULT_SIGBUS | VM_FAULT_SIGSEGV))
 			return -EFAULT;
 		BUG();
 	}
@@ -2804,18 +2918,25 @@ reuse:
 		if (!dirty_page)
 			return ret;
 
-		/*
-		 * Yes, Virginia, this is actually required to prevent a race
-		 * with clear_page_dirty_for_io() from clearing the page dirty
-		 * bit after it clear all dirty ptes, but before a racing
-		 * do_wp_page installs a dirty pte.
-		 *
-		 * __do_fault is protected similarly.
-		 */
 		if (!page_mkwrite) {
-			wait_on_page_locked(dirty_page);
-			set_page_dirty_balance(dirty_page, page_mkwrite);
+			struct address_space *mapping;
+			int dirtied;
+
+			lock_page(dirty_page);
+			dirtied = set_page_dirty(dirty_page);
+			VM_BUG_ON(dirty_page);
+			mapping = dirty_page->mapping;
+			unlock_page(dirty_page);
+
+			if (dirtied && mapping) {
+				/*
+				 * Some device drivers do not set page.mapping
+				 * but still dirty their pages
+				 */
+				balance_dirty_pages_ratelimited(mapping);
+			}
 		}
+
 		put_page(dirty_page);
 		if (page_mkwrite) {
 			struct address_space *mapping = dirty_page->mapping;
@@ -3270,7 +3391,7 @@ static inline int check_stack_guard_page(struct vm_area_struct *vma, unsigned lo
 		if (prev && prev->vm_end == address)
 			return prev->vm_flags & VM_GROWSDOWN ? 0 : -ENOMEM;
 
-		expand_downwards(vma, address - PAGE_SIZE);
+		return expand_downwards(vma, address - PAGE_SIZE);
 	}
 	if ((vma->vm_flags & VM_GROWSUP) && address + PAGE_SIZE == vma->vm_end) {
 		struct vm_area_struct *next = vma->vm_next;
@@ -3279,7 +3400,7 @@ static inline int check_stack_guard_page(struct vm_area_struct *vma, unsigned lo
 		if (next && next->vm_start == address + PAGE_SIZE)
 			return next->vm_flags & VM_GROWSUP ? 0 : -ENOMEM;
 
-		expand_upwards(vma, address + PAGE_SIZE);
+		return expand_upwards(vma, address + PAGE_SIZE);
 	}
 	return 0;
 }
@@ -3299,9 +3420,17 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	pte_unmap(page_table);
 
+	/* File mapping without ->vm_ops ? */
+	if (vma->vm_flags & VM_SHARED)
+		return VM_FAULT_SIGBUS;
+
+	/* File mapping without ->vm_ops ? */
+	if (vma->vm_flags & VM_SHARED)
+		return VM_FAULT_SIGBUS;
+
 	/* Check if we need to add a guard page to the stack */
 	if (check_stack_guard_page(vma, address) < 0)
-		return VM_FAULT_SIGBUS;
+		return VM_FAULT_SIGSEGV;
 
 	/* Use the zero-page for reads */
 	if (!(flags & FAULT_FLAG_WRITE)) {
@@ -3558,6 +3687,9 @@ static int do_linear_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 			- vma->vm_start) >> PAGE_SHIFT) + vma->vm_pgoff;
 
 	pte_unmap(page_table);
+	/* The VMA was not fully populated on mmap() or missing VM_DONTEXPAND */
+	if (!vma->vm_ops->fault)
+		return VM_FAULT_SIGBUS;
 	return __do_fault(mm, vma, address, pmd, pgoff, flags, orig_pte);
 }
 
@@ -3616,11 +3748,9 @@ int handle_pte_fault(struct mm_struct *mm,
 	entry = *pte;
 	if (!pte_present(entry)) {
 		if (pte_none(entry)) {
-			if (vma->vm_ops) {
-				if (likely(vma->vm_ops->fault))
-					return do_linear_fault(mm, vma, address,
+			if (vma->vm_ops)
+				return do_linear_fault(mm, vma, address,
 						pte, pmd, flags, entry);
-			}
 			return do_anonymous_page(mm, vma, address,
 						 pte, pmd, flags);
 		}
@@ -3681,6 +3811,7 @@ int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		return hugetlb_fault(mm, vma, address, flags);
 
+retry:
 	pgd = pgd_offset(mm, address);
 	pud = pud_alloc(mm, pgd, address);
 	if (!pud)
@@ -3694,13 +3825,24 @@ int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 							  pmd, flags);
 	} else {
 		pmd_t orig_pmd = *pmd;
+		int ret;
+
 		barrier();
 		if (pmd_trans_huge(orig_pmd)) {
 			if (flags & FAULT_FLAG_WRITE &&
 			    !pmd_write(orig_pmd) &&
-			    !pmd_trans_splitting(orig_pmd))
-				return do_huge_pmd_wp_page(mm, vma, address,
-							   pmd, orig_pmd);
+			    !pmd_trans_splitting(orig_pmd)) {
+				ret = do_huge_pmd_wp_page(mm, vma, address, pmd,
+							  orig_pmd);
+				/*
+				 * If COW results in an oom, the huge pmd will
+				 * have been split, so retry the fault on the
+				 * pte for a smaller charge.
+				 */
+				if (unlikely(ret & VM_FAULT_OOM))
+					goto retry;
+				return ret;
+			}
 			return 0;
 		}
 	}
@@ -3959,7 +4101,7 @@ int generic_access_phys(struct vm_area_struct *vma, unsigned long addr,
 	if (follow_phys(vma, addr, write, &prot, &phys_addr))
 		return -EINVAL;
 
-	maddr = ioremap_prot(phys_addr, PAGE_SIZE, prot);
+	maddr = ioremap_prot(phys_addr, PAGE_ALIGN(len + offset), prot);
 	if (write)
 		memcpy_toio(maddr + offset, buf, len);
 	else

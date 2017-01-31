@@ -31,9 +31,33 @@
 #endif
 #include <asm/system_info.h>
 
+#if defined(CONFIG_SEC_LT03_PROJECT)
+#define USE_MENU_TOUCHKEY	/* OS upgrade model: menu key */
+#define MXT_FIRMWARE_NAME	"mXT1664S_n.fw"
+#define WORKAROUND_THRESHOLD /* Former HW revision device changes register value to reduce the RF noise */
+
+/* Only KOR */
+#if defined(CONFIG_MACH_LT03SKT) || defined(CONFIG_MACH_LT03LGT) || defined(CONFIG_MACH_LT03KTT)
+#define KOR_REVISION
+#endif
+
+#elif defined(CONFIG_SEC_PICASSO_PROJECT)
+#define MXT_FIRMWARE_NAME	"mXT1664S_n.fw"
+#define PALM_TUNING
+
+#elif defined(CONFIG_SEC_VIENNA_PROJECT)
+#define MXT_FIRMWARE_NAME	"mXT1664S_v.fw"
+
+#elif defined(CONFIG_SEC_V2_PROJECT)
+#define MXT_FIRMWARE_NAME	"mXT1664S_v2.fw"
+
+#else
+#undef USE_MENU_TOUCHKEY	/* default: recent key (since KK) */
+#define MXT_FIRMWARE_NAME	NULL
+#endif
+
+
 #define MXT_DEFAULT_FIRMWARE_NAME	"MXTS.fw"
-#define MXT_V_PROJECT_FIRMWARE_NAME	"mXT1664S_v.fw"
-#define MXT_N_PROJECT_FIRMWARE_NAME	"mXT1664S_n.fw"
 #define MXT_FIRMWARE_INKERNEL_PATH	"tsp_atmel/"
 #define MXT_MAX_FW_PATH				30
 #define MXT_FIRMWARE_UPDATE_TYPE	true
@@ -275,8 +299,6 @@ enum {
 
 /************** Feature **************/
 #define TSP_PATCH				1
-#define TSP_BOOSTER				1
-#define MXT_TKEY_BOOSTER			1
 #define TSP_SEC_FACTORY			1
 #define TSP_INFORM_CHARGER		1
 #define TSP_USE_SHAPETOUCH		1
@@ -364,17 +386,6 @@ enum {
 	MXT_FW_FROM_UMS,
 	MXT_FW_FROM_REQ_FW,
 };
-#endif
-
-#if TSP_BOOSTER || MXT_TKEY_BOOSTER
-#define DVFS_STAGE_TRIPLE		3
-#define DVFS_STAGE_DUAL		2
-#define DVFS_STAGE_SINGLE	1
-#define DVFS_STAGE_NONE		0
-#include <linux/cpufreq.h>
-
-#define TOUCH_BOOSTER_OFF_TIME	500
-#define TOUCH_BOOSTER_CHG_TIME	130
 #endif
 
 #if ENABLE_TOUCH_KEY
@@ -588,24 +599,6 @@ struct mxt_data {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
 #endif
-#if TSP_BOOSTER
-	struct delayed_work	work_dvfs_off;
-	struct delayed_work	work_dvfs_chg;
-	struct mutex		dvfs_lock;
-	bool dvfs_lock_status;
-	int dvfs_old_stauts;
-	int dvfs_boost_mode;
-	int dvfs_freq;
-#endif
-#if MXT_TKEY_BOOSTER
-	struct delayed_work	work_tkey_dvfs_off;
-	struct delayed_work	work_tkey_dvfs_chg;
-	struct mutex		tkey_dvfs_lock;
-	bool tkey_dvfs_lock_status;
-	int tkey_dvfs_old_stauts;
-	int tkey_dvfs_boost_mode;
-	int tkey_dvfs_freq;
-#endif
 
 #if TSP_USE_ATMELDBG
 	struct atmel_dbg atmeldbg;
@@ -713,13 +706,5 @@ int mxt_read_all_diagnostic_data(struct mxt_data *data, u8 dbg_mode);
 extern int poweroff_charging;
 #endif
 
-#if TSP_BOOSTER
-extern void mxt_set_dvfs_lock(struct mxt_data *data , int mode);
-extern void mxt_init_dvfs(struct mxt_data *data);
-#endif
-#if MXT_TKEY_BOOSTER
-extern void mxt_tkey_set_dvfs_lock(struct mxt_data *data , int mode);
-extern void mxt_tkey_init_dvfs(struct mxt_data *data);
-#endif
 bool set_threshold(void *device_data);
 #endif

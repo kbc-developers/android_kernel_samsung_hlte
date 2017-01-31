@@ -1,5 +1,6 @@
 #if TSP_SEC_FACTORY
 #include <linux/uaccess.h>
+#define tostring(x) #x
 
 static void set_default_result(struct mxt_fac_data *data)
 {
@@ -26,7 +27,7 @@ static void not_support_cmd(void *device_data)
 	set_default_result(fdata);
 	sprintf(buff, "%s", "NA");
 	set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-	fdata->cmd_state = CMD_STATUS_NOT_APPLICABLE;
+	fdata->cmd_state = CMD_STATUS_WAITING;
 	dev_info(&client->dev, "%s: %s\"%s(%d)\"\n",
 		__func__, fdata->cmd, buff, strnlen(buff, sizeof(buff)));
 
@@ -207,6 +208,21 @@ static void mxt_treat_dbg_data(struct mxt_data *data,
 	bool reference_compare = true;
 #endif
 
+#if ENABLE_TOUCH_KEY
+	if((y_num == (data->pdata->touchkey[0].ynode)) &&
+					(x_num >= data->max_keys)){
+		return;
+	}
+#endif
+
+#if (USE_DUAL_X_MODE && TSP_INFORM_CHARGER)
+	if(data->charging_mode==1){
+		if(x_num == (data->fdata->num_xnode - 1)){
+			dev_dbg(&client->dev, "ignored x=%d/%d node, because TA mode,%d\n",x_num,data->fdata->num_xnode,data->charging_mode);
+			return;
+		}
+	}
+#endif
 	if (dbg_mode == MXT_DIAG_DELTA_MODE) {
 		/* read delta data */
 		mxt_read_mem(data, dbg_object->start_address + read_point,
@@ -792,6 +808,40 @@ static void get_config_ver(void *device_data)
 		__func__, buff, strnlen(buff, sizeof(buff)));
 }
 
+static void get_module_vendor(void *device_data)
+{
+	struct mxt_data *data = (struct mxt_data *)device_data;
+	struct i2c_client *client = data->client;
+	struct mxt_fac_data *fdata = data->fdata;
+	char buff[16] = {0};
+	int val;
+
+	set_default_result(fdata);
+	if (!(gpio_get_value(data->pdata->tsp_en) &&
+				gpio_get_value(data->pdata->tsp_en1))) {
+		dev_err(&client->dev, "%s: [ERROR] Touch is stopped\n",
+				__func__);
+		snprintf(buff, sizeof(buff), "%s", "TSP turned off");
+		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+		fdata->cmd_state = CMD_STATUS_NOT_APPLICABLE;
+		return;
+	}
+	if (data->pdata->tsp_vendor1 > 0) {
+		gpio_tlmm_config(GPIO_CFG(data->pdata->tsp_vendor1, 0,
+				GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+		val = gpio_get_value(data->pdata->tsp_vendor1);
+		dev_info(&client->dev,
+			"%s: TSP_ID: %d[%d]\n", __func__,data->pdata->tsp_vendor1, val);
+		snprintf(buff, sizeof(buff), "%s,%d", tostring(OK), val);
+		fdata->cmd_state = CMD_STATUS_OK;
+		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+		return;
+	}
+	snprintf(buff, sizeof(buff),  "%s", tostring(NG));
+	fdata->cmd_state = CMD_STATUS_FAIL;
+	set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+}
+
 static void get_threshold(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
@@ -991,6 +1041,11 @@ static void run_reference_read(void *device_data)
 		mxt_patch_test_event(data, 2);
 #endif
 
+	ret = mxt_write_object(data, MXT_GEN_COMMANDPROCESSOR_T6,
+		MXT_COMMAND_CALIBRATE, 1);
+	if(ret)
+		pr_err("[TSP] error sending calibration command %s\n", __func__);
+
 	ret = mxt_read_all_diagnostic_data(data,
 			MXT_DIAG_REFERENCE_MODE);
 	if (ret)
@@ -1000,7 +1055,10 @@ static void run_reference_read(void *device_data)
 			fdata->ref_min_data, fdata->ref_max_data);
 		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
 
-		fdata->cmd_state = CMD_STATUS_OK;
+		if(fdata->ref_min_data < 100 && fdata->ref_max_data < 4000)
+			fdata->cmd_state = CMD_STATUS_NG;
+		else
+			fdata->cmd_state = CMD_STATUS_OK;
 	}
 }
 
@@ -1504,58 +1562,13 @@ struct tsp_cmd {
 	void			(*cmd_func)(void *device_data);
 };
 
-#if TSP_BOOSTER
-static void boost_level(void *device_data)
-{
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct i2c_client *client = data->client;
-	struct mxt_fac_data *fdata = data->fdata;
-	char buff[16] = {0};
-
-	int retval;
-	dev_info(&client->dev, "%s\n", __func__);
-
-	set_default_result(fdata);
-
-	data->dvfs_boost_mode = fdata->cmd_param[0];
-
-	dev_info(&client->dev, "%s: dvfs_boost_mode = %d\n",
-			__func__, data->dvfs_boost_mode);
-
-	snprintf(buff, sizeof(buff), "OK");
-	fdata->cmd_state = CMD_STATUS_OK;
-
-	if (data->dvfs_boost_mode == DVFS_STAGE_NONE) {
-			retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-			if (retval < 0) {
-				dev_err(&client->dev,
-					"%s: booster stop failed(%d).\n",
-					__func__, retval);
-				snprintf(buff, sizeof(buff), "NG");
-				fdata->cmd_state = CMD_STATUS_FAIL;
-
-				data->dvfs_lock_status = false;
-			}
-	}
-
-	set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-
-	mutex_lock(&fdata->cmd_lock);
-	fdata->cmd_is_running = false;
-	mutex_unlock(&fdata->cmd_lock);
-
-	fdata->cmd_state = CMD_STATUS_WAITING;
-
-	return;
-}
-#endif
-
 static struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("fw_update", fw_update),},
 	{TSP_CMD("get_fw_ver_bin", get_fw_ver_bin),},
 	{TSP_CMD("get_fw_ver_ic", get_fw_ver_ic),},
 	{TSP_CMD("get_config_ver", get_config_ver),},
 	{TSP_CMD("get_threshold", get_threshold),},
+	{TSP_CMD("get_module_vendor", get_module_vendor),},
 	{TSP_CMD("module_off_master", module_off_master),},
 	{TSP_CMD("module_on_master", module_on_master),},
 	{TSP_CMD("module_off_slave", not_support_cmd),},
@@ -1577,9 +1590,6 @@ static struct tsp_cmd tsp_cmds[] = {
 #ifdef CONFIG_SEC_LT03_PROJECT
 	{TSP_CMD("set_tk_threshold", set_tk_threshold),},
 #endif
-#endif
-#if TSP_BOOSTER
-	{TSP_CMD("boost_level", boost_level),},
 #endif
 #if TSP_PATCH
 	{TSP_CMD("patch_update", patch_update),},
@@ -1706,6 +1716,9 @@ static ssize_t show_cmd_status(struct device *dev,
 
 	else if (fdata->cmd_state == CMD_STATUS_NOT_APPLICABLE)
 		snprintf(buff, sizeof(buff), "NOT_APPLICABLE");
+
+	else if (fdata->cmd_state == CMD_STATUS_NG)
+		snprintf(buff, sizeof(buff), "NG");
 
 	return snprintf(buf, TSP_BUF_SIZE, "%s\n", buff);
 }
@@ -1872,20 +1885,6 @@ static ssize_t touchkey_d_menu_show(struct device *dev,
 	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_menu"));
 }
 
-static ssize_t touchkey_d_home1_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
-{
-	struct mxt_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_home1"));
-}
-
-static ssize_t touchkey_d_home2_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
-{
-	struct mxt_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_home2"));
-}
-
 static ssize_t touchkey_d_back_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -1893,11 +1892,11 @@ static ssize_t touchkey_d_back_show(struct device *dev,
 	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_back"));
 }
 
-static ssize_t touchkey_menu_show(struct device *dev,
+static ssize_t touchkey_recent_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct mxt_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", touchkey_delta_show(data, "menu"));
+	return sprintf(buf, "%d\n", touchkey_delta_show(data, "recent"));
 }
 
 static ssize_t touchkey_back_show(struct device *dev,
@@ -1998,78 +1997,23 @@ static ssize_t touchkey_report_dummy_key_store(struct device *dev,
 	return size;
 }
 
-#if MXT_TKEY_BOOSTER
-static ssize_t boost_level_store(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
-{
-	struct mxt_data *data = dev_get_drvdata(dev);
-	int val, retval;
-
-	dev_info(&data->client->dev, "%s\n", __func__);
-	sscanf(buf, "%d", &val);
-
-	if (val != 1 && val != 2 && val != 0) {
-		dev_info(&data->client->dev,
-			"%s: wrong cmd %d\n", __func__, val);
-		return count;
-	}
-	data->tkey_dvfs_boost_mode = val;
-	dev_info(&data->client->dev,
-			"%s: tkey_dvfs_boost_mode = %d\n",
-			__func__, data->tkey_dvfs_boost_mode);
-
-	if (data->tkey_dvfs_boost_mode == DVFS_STAGE_DUAL) {
-		data->tkey_dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-		dev_info(&data->client->dev,
-			"%s: boost_mode DUAL, tkey_dvfs_freq = %d\n",
-			__func__, data->tkey_dvfs_freq);
-	} else if (data->tkey_dvfs_boost_mode == DVFS_STAGE_SINGLE) {
-		data->tkey_dvfs_freq = MIN_TOUCH_LIMIT;
-		dev_info(&data->client->dev,
-			"%s: boost_mode SINGLE, tkey_dvfs_freq = %d\n",
-			__func__, data->tkey_dvfs_freq);
-	} else if (data->tkey_dvfs_boost_mode == DVFS_STAGE_NONE) {
-		data->tkey_dvfs_freq = -1;
-		retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-		if (retval < 0) {
-			dev_err(&data->client->dev,
-					"%s: booster stop failed(%d).\n",
-					__func__, retval);
-			data->tkey_dvfs_lock_status = false;
-		}
-	}
-	return count;
-}
-#endif
-
 static DEVICE_ATTR(touchkey_d_menu, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_menu_show, NULL);
-static DEVICE_ATTR(touchkey_d_home1, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_home1_show, NULL);
-static DEVICE_ATTR(touchkey_d_home2, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_home2_show, NULL);
 static DEVICE_ATTR(touchkey_d_back, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_back_show, NULL);
-static DEVICE_ATTR(touchkey_menu, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_menu_show, NULL);
+static DEVICE_ATTR(touchkey_recent, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_recent_show, NULL);
 static DEVICE_ATTR(touchkey_back, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_back_show, NULL);
 static DEVICE_ATTR(touchkey_threshold, S_IRUGO | S_IWUSR | S_IWGRP, get_touchkey_threshold, NULL);
 static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL, touchkey_led_control);
 static DEVICE_ATTR(extra_button_event, S_IRUGO | S_IWUSR | S_IWGRP,
 					touchkey_report_dummy_key_show, touchkey_report_dummy_key_store);
-#if MXT_TKEY_BOOSTER
-static DEVICE_ATTR(boost_level, S_IWUSR | S_IWGRP, NULL, boost_level_store);
-#endif
 
 static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_d_menu.attr,
-	&dev_attr_touchkey_d_home1.attr,
-	&dev_attr_touchkey_d_home2.attr,
 	&dev_attr_touchkey_d_back.attr,
-	&dev_attr_touchkey_menu.attr,
+	&dev_attr_touchkey_recent.attr,
 	&dev_attr_touchkey_back.attr,
 	&dev_attr_touchkey_threshold.attr,
 	&dev_attr_brightness.attr,
 	&dev_attr_extra_button_event.attr,
-#if MXT_TKEY_BOOSTER
-	&dev_attr_boost_level.attr,
-#endif
 	NULL,
 };
 
@@ -2699,217 +2643,3 @@ static void  mxt_sysfs_remove(struct mxt_data *data)
 	mxt_exit_factory(data);
 #endif
 }
-
-#if TSP_BOOSTER
-static void mxt_change_dvfs_lock(struct work_struct *work)
-{
-	struct mxt_data *data =
-		container_of(work,
-			struct mxt_data, work_dvfs_chg.work);
-	int ret = 0;
-
-	mutex_lock(&data->dvfs_lock);
-
-	if (data->dvfs_boost_mode == DVFS_STAGE_DUAL) {
-		if (!data->mxt_enabled) {
-			dev_info(&data->client->dev,
-				"%s: mxt is disabled.\n", __func__);
-			return;
-		} else {
-		ret = set_freq_limit(DVFS_TOUCH_ID,
-				MIN_TOUCH_LIMIT_SECOND);
-		data->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-		}
-	} else if (data->dvfs_boost_mode == DVFS_STAGE_SINGLE ||
-			data->dvfs_boost_mode == DVFS_STAGE_TRIPLE) {
-		ret = set_freq_limit(DVFS_TOUCH_ID, -1);
-		data->dvfs_freq = -1;
-	}
-
-	if (ret < 0)
-		dev_err(&data->client->dev,
-			"%s: booster change failed(%d).\n",
-			__func__, ret);
-	mutex_unlock(&data->dvfs_lock);
-
-}
-
-static void mxt_set_dvfs_off(struct work_struct *work)
-{
-	struct mxt_data *data =
-		container_of(work,
-			struct mxt_data, work_dvfs_off.work);
-	int ret;
-
-	if (!data->mxt_enabled) {
-		dev_info(&data->client->dev,
-				"%s: mxt is disabled.\n", __func__);
-	} else {
-		mutex_lock(&data->dvfs_lock);
-
-		ret = set_freq_limit(DVFS_TOUCH_ID, -1);
-		data->dvfs_freq = -1;
-
-		if (ret < 0)
-			dev_err(&data->client->dev,
-				"%s: booster stop failed(%d).\n",
-				__func__, ret);
-		data->dvfs_lock_status = false;
-
-		mutex_unlock(&data->dvfs_lock);
-	}
-}
-
-void mxt_set_dvfs_lock(struct mxt_data *data, int on)
-{
-	int ret = 0;
-
-	if (data->dvfs_boost_mode == DVFS_STAGE_NONE) {
-		dev_info(&data->client->dev,
-				"%s: DVFS stage is none(%d)\n",
-				__func__, data->dvfs_boost_mode);
-		return;
-	}
-
-	mutex_lock(&data->dvfs_lock);
-	if (on == 0) {
-		if (data->dvfs_lock_status) {
-			schedule_delayed_work(&data->work_dvfs_off,
-				msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
-		}
-	} else if (on > 0) {
-		cancel_delayed_work(&data->work_dvfs_off);
-
-		if ((!data->dvfs_lock_status) || (data->dvfs_old_stauts < on)) {
-			cancel_delayed_work(&data->work_dvfs_chg);
-
-			if (data->dvfs_freq != MIN_TOUCH_LIMIT) {
-				if (data->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
-					ret = set_freq_limit(DVFS_TOUCH_ID,
-						MIN_TOUCH_LIMIT_SECOND);
-				else
-					ret = set_freq_limit(DVFS_TOUCH_ID,
-							MIN_TOUCH_LIMIT);
-				data->dvfs_freq = MIN_TOUCH_LIMIT;
-				if (ret < 0)
-					dev_err(&data->client->dev,
-						"%s: cpu first lock failed(%d)\n",
-						__func__, ret);
-			}
-			schedule_delayed_work(&data->work_dvfs_chg,
-				msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
-
-			data->dvfs_lock_status = true;
-		}
-	} else if (on < 0) {
-		if (data->dvfs_lock_status) {
-			cancel_delayed_work(&data->work_dvfs_off);
-			cancel_delayed_work(&data->work_dvfs_chg);
-			schedule_work(&data->work_dvfs_off.work);
-		}
-	}
-	data->dvfs_old_stauts = on;
-	mutex_unlock(&data->dvfs_lock);
-}
-
-void mxt_init_dvfs(struct mxt_data *data)
-{
-	mutex_init(&data->dvfs_lock);
-
-	data->dvfs_boost_mode = DVFS_STAGE_DUAL;
-
-	INIT_DELAYED_WORK(&data->work_dvfs_off, mxt_set_dvfs_off);
-	INIT_DELAYED_WORK(&data->work_dvfs_chg, mxt_change_dvfs_lock);
-
-	data->dvfs_lock_status = false;
-}
-#endif
-#if MXT_TKEY_BOOSTER
-static void mxt_tkey_change_dvfs_lock(struct work_struct *work)
-{
-	struct mxt_data *data =
-		container_of(work,
-			struct mxt_data, work_tkey_dvfs_chg.work);
-	int retval = 0;
-	mutex_lock(&data->tkey_dvfs_lock);
-
-	retval = set_freq_limit(DVFS_TOUCH_ID, data->tkey_dvfs_freq);
-	if (retval < 0)
-		dev_info(&data->client->dev,
-			"%s: booster change failed(%d).\n",
-			__func__, retval);
-	data->tkey_dvfs_lock_status = false;
-	mutex_unlock(&data->tkey_dvfs_lock);
-}
-
-static void mxt_tkey_set_dvfs_off(struct work_struct *work)
-{
-	struct mxt_data *data =
-		container_of(work,
-			struct mxt_data, work_tkey_dvfs_off.work);
-	int retval;
-
-	mutex_lock(&data->tkey_dvfs_lock);
-	retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-	if (retval < 0)
-		dev_info(&data->client->dev,
-			"%s: booster stop failed(%d).\n",
-			__func__, retval);
-
-	data->tkey_dvfs_lock_status = true;
-	mutex_unlock(&data->tkey_dvfs_lock);
-}
-
-void mxt_tkey_set_dvfs_lock(struct mxt_data *data, int on)
-{
-	int ret = 0;
-
-	if (data->tkey_dvfs_boost_mode == DVFS_STAGE_NONE) {
-		dev_dbg(&data->client->dev,
-				"%s: DVFS stage is none(%d)\n",
-				__func__, data->tkey_dvfs_boost_mode);
-		return;
-	}
-
-	mutex_lock(&data->tkey_dvfs_lock);
-	if (on == 0) {
-		cancel_delayed_work(&data->work_tkey_dvfs_chg);
-
-		if (data->tkey_dvfs_lock_status) {
-			ret = set_freq_limit(DVFS_TOUCH_ID, data->tkey_dvfs_freq);
-					if (ret < 0)
-						dev_info(&data->client->dev,
-					"%s: cpu first lock failed(%d)\n", __func__, ret);
-			data->tkey_dvfs_lock_status = false;
-		}
-
-		schedule_delayed_work(&data->work_tkey_dvfs_off,
-			msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
-
-	} else if (on == 1) {
-		cancel_delayed_work(&data->work_tkey_dvfs_off);
-				schedule_delayed_work(&data->work_tkey_dvfs_chg,
-				msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
-
-	} else if (on == 2) {
-		if (data->tkey_dvfs_lock_status) {
-			cancel_delayed_work(&data->work_tkey_dvfs_off);
-			cancel_delayed_work(&data->work_tkey_dvfs_chg);
-			schedule_work(&data->work_tkey_dvfs_off.work);
-		}
-	}
-	mutex_unlock(&data->tkey_dvfs_lock);
-}
-
-void mxt_tkey_init_dvfs(struct mxt_data *data)
-{
-	mutex_init(&data->tkey_dvfs_lock);
-	data->tkey_dvfs_boost_mode = DVFS_STAGE_DUAL;
-	data->tkey_dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-
-	INIT_DELAYED_WORK(&data->work_tkey_dvfs_off, mxt_tkey_set_dvfs_off);
-	INIT_DELAYED_WORK(&data->work_tkey_dvfs_chg, mxt_tkey_change_dvfs_lock);
-
-	data->tkey_dvfs_lock_status = true;
-}
-#endif

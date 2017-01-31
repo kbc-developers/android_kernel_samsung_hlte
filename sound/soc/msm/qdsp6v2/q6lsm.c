@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
+#include <linux/memory_alloc.h>
 #include <linux/debugfs.h>
 #include <linux/time.h>
 #include <linux/atomic.h>
@@ -254,6 +255,7 @@ void q6lsm_client_free(struct lsm_client *client)
 	q6lsm_mmap_apr_dereg();
 	mutex_destroy(&client->cmd_lock);
 	kfree(client);
+	client = NULL;
 }
 
 /*
@@ -782,7 +784,7 @@ int q6lsm_snd_model_buf_alloc(struct lsm_client *client, size_t len)
 		client->lsm_cal_size = lsm_cal.cal_size;
 		memcpy((client->sound_model.data + pad_zero +
 			client->sound_model.size),
-			(uint32_t *)lsm_cal.cal_kvaddr, len);
+			(uint32_t *)lsm_cal.cal_kvaddr, lsm_cal.cal_size);
 	} else {
 		rc = -EBUSY;
 		goto fail;

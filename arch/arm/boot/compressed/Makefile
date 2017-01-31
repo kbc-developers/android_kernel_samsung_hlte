@@ -24,7 +24,7 @@ endif
 AFLAGS_head.o += -DTEXT_OFFSET=$(TEXT_OFFSET)
 # change@wtl.rsengott
 # FIPS_KERNEL_RAM_BASE is start of kernel text in RAM
-ifeq ($(CONFIG_CRYPTO_FIPS),y)
+ifeq ($(CONFIG_CRYPTO_FIPS_OLD_INTEGRITY_CHECK),y)
 AFLAGS_head.o += -DFIPS_KERNEL_RAM_BASE=0x00008000
 endif
 HEAD	= head.o
@@ -131,7 +131,6 @@ KBUILD_CFLAGS = $(subst -pg, , $(ORIG_CFLAGS))
 endif
 
 ccflags-y := -fpic -fno-builtin -I$(obj)
-asflags-y := -Wa,-march=all
 
 # Supply kernel BSS size to the decompressor via a linker symbol.
 KBSS_SZ = $(shell $(CROSS_COMPILE)size $(obj)/../../../../vmlinux | \

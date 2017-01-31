@@ -1087,7 +1087,7 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 
 	return (uint8_t)fuse_id;
 #else
-	return 0;
+    return 0;
 #endif
 }
 
@@ -1119,7 +1119,7 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 
 	return resp_buf;
 #else
-	return 0;
+    return 0;
 #endif
 }
 #endif

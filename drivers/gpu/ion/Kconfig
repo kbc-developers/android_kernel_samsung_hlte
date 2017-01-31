@@ -5,13 +5,6 @@ menuconfig ION
 	help
 	  Chose this option to enable the ION Memory Manager.
 
-config ION_TEST
-	tristate "Ion Test Device"
-	depends on ION
-	help
-	  Choose this option to create a device that can be used to test the
-	  kernel and device side ION functions.
-
 config ION_TEGRA
 	tristate "Ion for Tegra"
 	depends on ARCH_TEGRA && ION
@@ -23,3 +16,7 @@ config ION_MSM
 	depends on ARCH_MSM && ION
 	help
 	  Choose this option if you wish to use ion on an MSM target.
+
+config DTCP_ION_PHYS
+	bool "dtcp msm ion phys ioctl"
+	default n

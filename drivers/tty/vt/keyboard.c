@@ -46,6 +46,9 @@
 #include <asm/irq_regs.h>
 
 extern void ctrl_alt_del(void);
+#ifdef CONFIG_USE_VM_KEYBOARD_REJECT
+extern bool reject_keyboard_specific_key;
+#endif
 
 /*
  * Exported functions/variables
@@ -615,6 +618,13 @@ static void fn_show_state(struct vc_data *vc)
 
 static void fn_boot_it(struct vc_data *vc)
 {
+#ifdef CONFIG_USE_VM_KEYBOARD_REJECT
+	if (reject_keyboard_specific_key) {
+		pr_info("%s: specific key combination is reject\n", __func__);
+		return;
+	}
+#endif
+
 	ctrl_alt_del();
 }
 
@@ -1053,13 +1063,10 @@ static int kbd_update_leds_helper(struct input_handle *handle, void *data)
  */
 int vt_get_leds(int console, int flag)
 {
-	unsigned long flags;
 	struct kbd_struct * kbd = kbd_table + console;
 	int ret;
 
-	spin_lock_irqsave(&kbd_event_lock, flags);
 	ret = vc_kbd_led(kbd, flag);
-	spin_unlock_irqrestore(&kbd_event_lock, flags);
 
 	return ret;
 }

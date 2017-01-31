@@ -19,12 +19,22 @@
 #ifndef _SENSORS_CORE_H_
 #define _SENSORS_CORE_H_
 
+#include <linux/android_alarm.h>
+/* report timestamp from kernel (for Android L) */
+#define TIME_LO_MASK 0x00000000FFFFFFFF
+#define TIME_HI_MASK 0xFFFFFFFF00000000
+#define TIME_HI_SHIFT 32
+
+#define MIN_DELAY	10000000LL
+#define MAX_DELAY	200000000LL
+
 int sensors_create_symlink(struct kobject *, const char *);
 void sensors_remove_symlink(struct kobject *, const char *);
 int sensors_register(struct device *, void *,
 	struct device_attribute *[], char *);
 void sensors_unregister(struct device *, struct device_attribute *[]);
 void destroy_sensor_class(void);
-void remap_sensor_data(s16 *, int);
+void remap_sensor_data(s16 *, u32);
+void remap_sensor_data_32(int *, u32);
 
 #endif

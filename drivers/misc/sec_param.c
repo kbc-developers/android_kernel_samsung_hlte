@@ -20,7 +20,11 @@
 #define PARAM_WR	1
 
 #define SEC_PARAM_FILE_NAME	"/dev/block/platform/msm_sdcc.1/by-name/param"	/* parameter block */
+#if defined(CONFIG_PARAM_SIZE_983000)
+#define SEC_PARAM_FILE_SIZE	0x983000		/* 9.5MB */
+#else
 #define SEC_PARAM_FILE_SIZE	0xA00000		/* 10MB */
+#endif
 #define SEC_PARAM_FILE_OFFSET (SEC_PARAM_FILE_SIZE - 0x100000)
 
 /* single global instance */
@@ -125,7 +129,7 @@ bool sec_get_param(enum sec_param_index index, void *value)
 				sizeof(unsigned int));
 		break;
 #endif
-#ifdef CONFIG_GSM_MODEM_SPRD6500
+#if defined(CONFIG_GSM_MODEM_SPRD6500) || defined(CONFIG_SGLTE_QSC_MODEM)
 	case param_update_cp_bin:
 		memcpy(value, &(param_data->update_cp_bin),
 				sizeof(unsigned int));
@@ -142,7 +146,17 @@ bool sec_get_param(enum sec_param_index index, void *value)
 	case param_index_boot_alarm_value_h:
 		memcpy(value, &(param_data->boot_alarm_value_h), sizeof(unsigned int));
 		break;
-#endif	
+#endif
+#ifdef CONFIG_SEC_MONITOR_BATTERY_REMOVAL
+	case param_index_normal_poweroff:
+		memcpy(&(param_data->normal_poweroff), value, sizeof(unsigned int));
+		break;
+#endif
+#ifdef CONFIG_RESTART_REASON_SEC_PARAM
+	case param_index_restart_reason:
+		memcpy(value, &(param_data->param_restart_reason), sizeof(unsigned int));
+		break;
+#endif
 	default:
 		return false;
 	}
@@ -187,7 +201,7 @@ bool sec_set_param(enum sec_param_index index, void *value)
 				value, sizeof(unsigned int));
 		break;
 #endif
-#ifdef CONFIG_GSM_MODEM_SPRD6500
+#if defined(CONFIG_GSM_MODEM_SPRD6500) || defined(CONFIG_SGLTE_QSC_MODEM)
 	case param_update_cp_bin:
 		memcpy(&(param_data->update_cp_bin),
 				value, sizeof(unsigned int));
@@ -203,7 +217,18 @@ bool sec_set_param(enum sec_param_index index, void *value)
 	case param_index_boot_alarm_value_h:
 		memcpy(&(param_data->boot_alarm_value_h), value, sizeof(unsigned int));
 		break;
-#endif	
+#endif
+#ifdef CONFIG_SEC_MONITOR_BATTERY_REMOVAL
+	case param_index_normal_poweroff:
+		memcpy(&(param_data->normal_poweroff), value, sizeof(unsigned int));
+		break;
+#endif
+#ifdef CONFIG_RESTART_REASON_SEC_PARAM
+	case param_index_restart_reason:
+		memcpy(&(param_data->param_restart_reason),
+				value, sizeof(unsigned int));
+		break;
+#endif
 	default:
 		return false;
 	}

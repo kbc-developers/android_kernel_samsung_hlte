@@ -191,8 +191,6 @@ struct adreno_device {
 	unsigned int fast_hang_detect;
 	unsigned int ft_policy;
 	unsigned int long_ib_detect;
-	unsigned int long_ib;
-	unsigned int long_ib_ts;
 	unsigned int ft_pf_policy;
 	unsigned int gpulist_index;
 	struct ocmem_buf *ocmem_hdl;
@@ -203,7 +201,6 @@ struct adreno_device {
 	struct adreno_dispatcher dispatcher;
 	struct adreno_busy_data busy_data;
 
-	struct work_struct start_work;
 	struct work_struct input_work;
 	unsigned int ram_cycles_lo;
 };
@@ -585,6 +582,8 @@ static inline int adreno_is_a2xx(struct adreno_device *adreno_dev)
 {
 	return (adreno_dev->gpurev <= 299);
 }
+
+bool adreno_hw_isidle(struct kgsl_device *device);
 
 static inline int adreno_is_a3xx(struct adreno_device *adreno_dev)
 {

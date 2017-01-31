@@ -86,7 +86,9 @@ struct hdmi_tx_ctrl {
 	struct work_struct cable_notify_work;
 
 	bool hdcp_feature_on;
+	bool ds_registered;
 	u32 present_hdcp;
+
 	u8 spd_vendor_name[9];
 	u8 spd_product_description[17];
 
@@ -96,6 +98,9 @@ struct hdmi_tx_ctrl {
 	void *downstream_data;
 
 	void *feature_data[HDMI_TX_FEAT_MAX];
+#if defined (CONFIG_VIDEO_MHL_V2) || defined (CONFIG_VIDEO_MHL_SII8246)
+	int is_power_enabled[HDMI_TX_MAX_PM];
+#endif
 };
 
 #if defined (CONFIG_VIDEO_MHL_V2) || defined (CONFIG_VIDEO_MHL_SII8246)

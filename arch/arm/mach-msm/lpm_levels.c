@@ -26,6 +26,7 @@
 #include <linux/suspend.h>
 #include <linux/pm_qos.h>
 #include <linux/of_platform.h>
+#include <linux/of_gpio.h>
 #include <mach/mpm.h>
 #include <mach/cpuidle.h>
 #include <mach/event_timer.h>
@@ -361,6 +362,7 @@ static void lpm_system_prepare(struct lpm_system_state *system_state,
 	spin_lock(&system_state->sync_lock);
 	if (index < 0 ||
 			num_powered_cores != system_state->num_cores_in_sync) {
+		lpm_set_l2_mode(system_state, default_l2_mode);
 		spin_unlock(&system_state->sync_lock);
 		return;
 	}
@@ -807,6 +809,15 @@ static int lpm_suspend_prepare(void)
 	msm_mpm_suspend_prepare();
 	regulator_showall_enabled();
 
+/* Temporary fix for RUBEN LTE for configuring GPIO 33 to NC configuration
+before entering sleep as some other process is changing it*/
+#if defined (CONFIG_MACH_RUBENSLTE_OPEN)
+	if (gpio_is_valid(33)) {
+		gpio_tlmm_config(GPIO_CFG(33, 0,
+			GPIO_CFG_INPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),
+			GPIO_CFG_ENABLE);
+	}
+#endif
 #ifdef CONFIG_SEC_GPIO_DVS
 	/************************ Caution !!! ****************************
 	 * This functiongit a must be located in appropriate SLEEP position

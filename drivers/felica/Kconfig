@@ -9,4 +9,3 @@ config NFC_FELICA
 config FELICA_NO_SECURE
 	bool "FeliCa no secure"
 	default n
-

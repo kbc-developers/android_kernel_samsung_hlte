@@ -16,9 +16,6 @@
 #include <asm/hwcap.h>
 #include <asm/pgtable-hwdef.h>
 #include <asm/pgtable.h>
-#ifdef TIMA_EMUL_ENABLED
-#include <asm/entry-macro-tima.S>
-#endif
 
 #include "proc-macros.S"
 
@@ -100,7 +97,7 @@ ENDPROC(cpu_v7_dcache_clean_area)
 .equ	cpu_v7_suspend_size, 4 * 8
 #ifdef CONFIG_ARM_CPU_SUSPEND
 ENTRY(cpu_v7_do_suspend)
-	stmfd	sp!, {r4 - r10, lr}
+	stmfd	sp!, {r4 - r11, lr}
 	mrc	p15, 0, r4, c13, c0, 0	@ FCSE/PID
 	mrc	p15, 0, r5, c13, c0, 3	@ User r/o thread ID
 	stmia	r0!, {r4 - r5}
@@ -111,7 +108,7 @@ ENTRY(cpu_v7_do_suspend)
 	mrc	p15, 0, r9, c1, c0, 1	@ Auxiliary control register
 	mrc	p15, 0, r10, c1, c0, 2	@ Co-processor access control
 	stmia	r0, {r6 - r11}
-	ldmfd	sp!, {r4 - r10, pc}
+	ldmfd	sp!, {r4 - r11, pc}
 ENDPROC(cpu_v7_do_suspend)
 
 ENTRY(cpu_v7_do_resume)
@@ -123,34 +120,31 @@ ENTRY(cpu_v7_do_resume)
 	mcr	p15, 0, r4, c13, c0, 0	@ FCSE/PID
 	mcr	p15, 0, r5, c13, c0, 3	@ User r/o thread ID
 	ldmia	r0, {r6 - r11}
-#ifndef TIMA_EMUL_ENABLED
+#ifndef CONFIG_TIMA_RKP_EMUL_CP15_INSTR
 	mcr	p15, 0, r6, c3, c0, 0	@ Domain ID
-#else
-	tima_macro_emul_crit_instn r6, 0x3f806221
-
 #endif
 #ifndef CONFIG_ARM_LPAE
 	ALT_SMP(orr	r1, r1, #TTB_FLAGS_SMP)
 	ALT_UP(orr	r1, r1, #TTB_FLAGS_UP)
 #endif
-#ifndef TIMA_EMUL_ENABLED
+#ifndef	CONFIG_TIMA_RKP_EMUL_CP15_INSTR
 	mcr	p15, 0, r1, c2, c0, 0	@ TTB 0
-#else
-	tima_macro_emul_crit_instn r7, 0x3f803221
-
 #endif
-#ifndef TIMA_EMUL_ENABLED
 	mcr	p15, 0, r7, c2, c0, 1	@ TTB 1
-#else
-	tima_macro_emul_crit_instn r8, 0x3f804221
-
-#endif
-#ifndef TIMA_EMUL_ENABLED
+#ifndef	CONFIG_TIMA_RKP_EMUL_CP15_INSTR
 	mcr	p15, 0, r11, c2, c0, 2	@ TTB control register
-#else
-	tima_macro_emul_crit_instn ip, 0x3f805221
-
 #endif
+
+#ifdef CONFIG_TIMA_RKP_EMUL_CP15_INSTR
+	mov	r4, r0
+	ldr	r0, =0x3f806221
+	smc	#1
+	mov	r0, r4
+	/* Flush TLB */
+	mcr    p15, 0, r0, c8, c3, 0
+	dsb
+#endif
+
 	mrc	p15, 0, r4, c1, c0, 1	@ Read Auxiliary control register
 	teq	r4, r9			@ Is it already set?
 	mcrne	p15, 0, r9, c1, c0, 1	@ No, so write it
@@ -272,7 +266,6 @@ __v7_setup:
 
 3:	mov	r10, #0
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
-	dsb
 #ifdef CONFIG_MMU
 	mcr	p15, 0, r10, c8, c7, 0		@ invalidate I + D TLBs
 	v7_ttb_setup r10, r4, r8, r5		@ TTBCR, TTBRx setup
@@ -306,6 +299,7 @@ __v7_setup:
 	mcr     p15, 3, r0, c15, c0, 2
 #endif
 
+	dsb					@ Complete invalidations
 #ifndef CONFIG_ARM_THUMBEE
 	mrc	p15, 0, r0, c0, c1, 0		@ read ID_PFR0 for ThumbEE
 	and	r0, r0, #(0xf << 12)		@ ThumbEE enabled field

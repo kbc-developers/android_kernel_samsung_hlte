@@ -14,6 +14,7 @@
 
 /include/ "msm8974pro-ab-pm8941.dtsi"
 /include/ "msm8974-fluid.dtsi"
+/include/ "dsi-panel-jdi-720p-cmd.dtsi"
 
 / {
 	model = "Qualcomm MSM 8974Pro-AA/AB FLUID";
@@ -22,6 +23,10 @@
 };
 
 &soc {
+	qcom,mdss_dsi@fd922800{
+		qcom,dsi-pref-prim-pan = <&dsi_jdi_720p_cmd>;
+	};
+
 	spi@f9966000 { /* BLSP2 QUP4 */
 		/* Leave the SPI bus for QDSP to use */
 		status = "disabled";
@@ -39,4 +44,9 @@
 	 * Disabling the bus to make sure that display gets the gpio.
 	 */
 	status = "disabled";
+};
+
+&sdhc_1 {
+	qcom,pad-pull-on = <0x0 0x3 0x3 0x1>; /* no-pull, pull-up, pull-up, pull-down */
+	qcom,pad-pull-off = <0x0 0x3 0x3 0x1>; /* no-pull, pull-up, pull-up, pull-down */
 };

@@ -46,6 +46,7 @@
 #include <linux/fcntl.h>
 #include <linux/fs.h>
 #endif
+#include <linux/debugfs.h>
 #include <asm/system_info.h>
 #include <linux/file.h>
 #include <linux/fdtable.h>
@@ -68,7 +69,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 #endif
-
+#if defined (CONFIG_MACH_AFYONLTE_TMO) || defined(CONFIG_MACH_ATLANTICLTE_ATT) || defined(CONFIG_MACH_ATLANTIC3GEUR_OPEN)
+#include <asm/hardware/gic.h>
+#endif
 #include <linux/vmalloc.h>
 
 #ifdef CONFIG_SEC_DEBUG_VERBOSE_SUMMARY_HTML
@@ -730,10 +733,14 @@ void *kfree_hook(void *p, void *caller)
 /* onlyjazz.ed26 : make the restart_reason global to enable it early
    in sec_debug_init and share with restart functions */
 void *restart_reason;
-#ifdef USE_RESTART_REASSON_DDR
-void *restart_reason_ddr_address;
+#ifdef CONFIG_RESTART_REASON_DDR
+void *restart_reason_ddr_address = NULL;
 /* Using bottom of sec_dbg DDR address range for writting restart reason */
+#ifdef CONFIG_SEC_LPDDR_6G
+#define  RESTART_REASON_DDR_ADDR 0x2FFFE000
+#else
 #define  RESTART_REASON_DDR_ADDR 0x3FFFE000
+#endif
 #endif
 
 DEFINE_PER_CPU(struct sec_debug_core_t, sec_debug_core_reg);
@@ -972,6 +979,7 @@ static int force_error(const char *val, struct kernel_param *kp)
 		int *ptr = kmalloc(sizeof(int), GFP_KERNEL);
 		*ptr++ = 4;
 		*ptr = 2;
+
 		panic("MEMORY CORRUPTION");
 #ifdef CONFIG_SEC_DEBUG_SEC_WDOG_BITE
 	}else if (!strncmp(val, "secdogbite", 10)) {
@@ -1221,6 +1229,58 @@ int kernel_sec_get_debug_level(void)
 }
 EXPORT_SYMBOL(kernel_sec_get_debug_level);
 
+#ifdef CONFIG_SEC_MONITOR_BATTERY_REMOVAL
+static unsigned normal_off = 0;
+static int __init power_normal_off(char *val)
+{
+	normal_off = strncmp(val, "1", 1) ? 0 : 1;
+	pr_info("%s, normal_off:%d\n", __func__, normal_off);
+        return 1;
+}
+__setup("normal_off=", power_normal_off);
+
+bool kernel_sec_set_normal_pwroff(int value)
+{
+	int normal_poweroff = value;
+	pr_info(" %s, value :%d\n", __func__, value);
+	sec_set_param(param_index_normal_poweroff, &normal_poweroff);
+
+	return 1;
+}
+EXPORT_SYMBOL(kernel_sec_set_normal_pwroff);
+
+static int sec_get_normal_off(void *data, u64 *val)
+{
+        *val = normal_off;
+        return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(normal_off_fops, sec_get_normal_off, NULL, "%lld\n");
+
+static int __init sec_logger_init(void)
+{
+#ifdef CONFIG_DEBUG_FS
+        struct dentry *dent;
+        struct dentry   *dbgfs_file;
+
+        dent = debugfs_create_dir("sec_logger", 0);
+        if (IS_ERR_OR_NULL(dent)) {
+                pr_err("Failed to create debugfs dir of sec_logger\n");
+                return PTR_ERR(dent);
+	}
+
+        dbgfs_file = debugfs_create_file("normal_off", 0644, dent,
+						 NULL, &normal_off_fops);
+        if (IS_ERR_OR_NULL(dbgfs_file)) {
+                pr_err("Failed to create debugfs file of normal_off file\n");
+	        debugfs_remove_recursive(dent);
+                return PTR_ERR(dbgfs_file);
+        }
+#endif
+        return 0;
+}
+late_initcall(sec_logger_init);
+#endif
+
 /* core reg dump function*/
 static void sec_debug_save_core_reg(struct sec_debug_core_t *core_reg)
 {
@@ -1403,11 +1463,32 @@ static int sec_debug_normal_reboot_handler(struct notifier_block *nb,
 
 static void sec_debug_set_upload_cause(enum sec_debug_upload_cause_t type)
 {
+#ifdef CONFIG_RESTART_REASON_DDR
+	void *upload_cause_ddr_address = restart_reason_ddr_address + 0x10;
+#endif
 	void * upload_cause = MSM_IMEM_BASE + 0x66C;
 	per_cpu(sec_debug_upload_cause, smp_processor_id()) = type;
 	__raw_writel(type, upload_cause);
 
-	pr_emerg("(%s) %x\n", __func__, type);
+	pr_emerg("(%s) type = 0x%x\n", __func__, type);
+
+#ifdef CONFIG_RESTART_REASON_DDR
+	if(restart_reason_ddr_address) {
+		if(type == UPLOAD_CAUSE_POWER_LONG_PRESS) {
+			/* UPLOAD_CAUSE_POWER_LONG_PRESS magic number to DDR restart reason address */
+			__raw_writel(UPLOAD_CAUSE_POWER_LONG_PRESS, upload_cause_ddr_address);
+			pr_info("%s: Write UPLOAD_CAUSE_POWER_LONG_PRESS to DDR : 0x%x \n",
+					__func__,__raw_readl(upload_cause_ddr_address));
+		}
+		/* if power key is released after pressing, clear the DDR */
+		if(type == UPLOAD_CAUSE_INIT &&
+				(UPLOAD_CAUSE_POWER_LONG_PRESS == __raw_readl(upload_cause_ddr_address))) {
+			__raw_writel(0x0, upload_cause_ddr_address);
+			pr_info("%s: Clear UPLOAD_CAUSE_POWER_LONG_PRESS to DDR : 0x%x \n",
+					__func__, __raw_readl(upload_cause_ddr_address));
+		}
+	}
+#endif
 }
 
 extern struct uts_namespace init_uts_ns;
@@ -1529,9 +1610,25 @@ int sec_debug_dump_stack(void)
 }
 EXPORT_SYMBOL(sec_debug_dump_stack);
 
+#ifdef CONFIG_TOUCHSCREEN_MMS252// debug for tsp ghost touch
+extern void dump_tsp_log(void);
+#endif
+
+#if defined(CONFIG_TOUCHSCREEN_IST30XX)
+extern void tsp_start_read_rawdata(void);
+extern void tsp_stop_read_rawdata(void);
+#endif
+
 void sec_debug_check_crash_key(unsigned int code, int value)
 {
 	static enum { NONE, STEP1, STEP2, STEP3} state = NONE;
+#if defined(CONFIG_TOUCHSCREEN_IST30XX)
+	static enum { S0, S1, S2, S3 } state_tsp = S0;
+	static bool isCatchRd = true;
+#endif
+#ifdef CONFIG_TOUCHSCREEN_MMS252
+        static enum { NO, T1, T2, T3} state_tsp = NO;
+#endif
 
 	printk(KERN_ERR "%s code %d value %d state %d enable %d\n", __func__, code, value, state, enable);
 
@@ -1542,8 +1639,78 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 			sec_debug_set_upload_cause(UPLOAD_CAUSE_INIT);
 	}
 
+#ifdef CONFIG_TOUCHSCREEN_MMS252
+	if(code == KEY_VOLUMEUP && !value){
+		 state_tsp = NO;
+	} else {
+
+		switch (state_tsp) {
+		case NO:
+			if (code == KEY_VOLUMEUP && value)
+				state_tsp = T1;
+			else
+				state_tsp = NO;
+			break;
+		case T1:
+			if (code == KEY_HOMEPAGE && value)
+				state_tsp = T2;
+			else
+				state_tsp = NO;
+			break;
+		case T2:
+			if (code == KEY_HOMEPAGE && !value)
+				state_tsp = T3;
+			else
+				state_tsp = NO;
+			break;
+		case T3:
+			if (code == KEY_HOMEPAGE && value) {
+				pr_info("[TSP] dump_tsp_log : %d\n", __LINE__ );
+				dump_tsp_log();
+			}
+			break;
+		}
+	}
+
+#endif
+
 	if (!enable)
 		return;
+
+#if defined(CONFIG_TOUCHSCREEN_IST30XX)
+	switch(state_tsp) {
+		case S0:
+			if(code == KEY_VOLUMEUP && value)
+				state_tsp = S1;
+			else
+				state_tsp = S0;
+			break;
+		case S1:
+			if (code == KEY_VOLUMEDOWN && value)
+				state_tsp = S2;
+			else
+				state_tsp = S0;
+			break;
+		case S2:
+			if (code == KEY_HOMEPAGE&& value)
+				state_tsp = S3;
+			else
+				state_tsp = S0;
+			break;
+		case S3:
+			if (code == KEY_HOMEPAGE && !value) {
+				if(isCatchRd){
+					isCatchRd = !isCatchRd;
+					tsp_start_read_rawdata();
+				} else {
+					isCatchRd = !isCatchRd;
+					tsp_stop_read_rawdata();
+				}
+			} else {
+				state_tsp = S0;
+			}
+	}
+#endif
 
 	switch (state) {
 	case NONE:
@@ -1569,6 +1736,9 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 			emerg_pet_watchdog();
 			dump_all_task_info();
 			dump_cpu_stat();
+#if defined (CONFIG_MACH_AFYONLTE_TMO) || defined(CONFIG_MACH_ATLANTICLTE_ATT) || defined(CONFIG_MACH_ATLANTIC3GEUR_OPEN)
+			gic_dump_register_set();
+#endif
 			panic("Crash Key");
 		} else {
 			state = NONE;
@@ -1863,7 +2033,8 @@ int sec_debug_subsys_init(void)
 	ADD_VAR_TO_VARMON(speed_bin);
 	ADD_VAR_TO_VARMON(pvs_bin);
 #endif
-#endif
+#endif 
+
 #ifdef CONFIG_ARCH_MSM8974PRO
 	ADD_VAR_TO_VARMON(pmc8974_rev);
 #else
@@ -2210,13 +2381,13 @@ int __init sec_debug_init(void)
 {
 	restart_reason = MSM_IMEM_BASE + RESTART_REASON_ADDR;
 	/* Using bottom of sec_dbg DDR address range for writting restart reason */
-#ifdef USE_RESTART_REASSON_DDR
+#ifdef CONFIG_RESTART_REASON_DDR
 		restart_reason_ddr_address = ioremap_nocache(RESTART_REASON_DDR_ADDR, SZ_4K);
 		pr_emerg("%s: restart_reason_ddr_address : 0x%x \n", __func__,(unsigned int)restart_reason_ddr_address);
 #endif
 
 	pr_emerg("%s: enable=%d\n", __func__, enable);
-
+	pr_emerg("%s:__raw_readl restart_reason=%d\n", __func__, __raw_readl(restart_reason));
 	/* check restart_reason here */
 	pr_emerg("%s: restart_reason : 0x%x\n", __func__,
 		(unsigned int)restart_reason);
@@ -2293,10 +2464,20 @@ void sec_debug_print_file_list(void)
 	}
 }
 
-void sec_debug_EMFILE_error_proc(void)
+void sec_debug_EMFILE_error_proc(unsigned long files_addr)
 {
-	printk(KERN_ERR "Too many open files(%d:%s)\n",
-		current->tgid, current->group_leader->comm);
+	if (files_addr!=(unsigned long)(current->files)) {
+		printk(KERN_ERR "Too many open files Error at %pS\n"
+						"%s(%d) thread of %s process tried fd allocation by proxy.\n"
+						"files_addr = 0x%lx, current->files=0x%p\n",
+					__builtin_return_address(0),
+					current->comm,current->tgid,current->group_leader->comm,
+					files_addr, current->files);
+		return;
+	}
+
+	printk(KERN_ERR "Too many open files(%d:%s) at %pS\n",
+		current->tgid, current->group_leader->comm,__builtin_return_address(0));
 
 	if (!enable)
 		return;
@@ -2684,6 +2865,83 @@ static int __init sec_debug_user_fault_init(void)
 	return 0;
 }
 device_initcall(sec_debug_user_fault_init);
+
+#ifdef CONFIG_RESTART_REASON_SEC_PARAM
+void sec_param_restart_reason(const char *cmd)
+{
+	unsigned long value;
+	unsigned int param_restart_reason;
+
+	if (cmd != NULL) {
+		printk(KERN_NOTICE " Reboot cmd=%s\n",cmd);
+		if (!strncmp(cmd, "bootloader", 10)) {
+			param_restart_reason = 0x77665500;
+		} else if (!strncmp(cmd, "recovery", 8)) {
+			param_restart_reason = 0x77665502;
+		} else if (!strcmp(cmd, "rtc")) {
+			param_restart_reason = 0x77665503;
+		} else if (!strncmp(cmd, "oem-", 4)) {
+			unsigned long code;
+			int ret;
+			ret = kstrtoul(cmd + 4, 16, &code);
+			if (!ret)
+				param_restart_reason = (0x6f656d00 | (code & 0xff));
+#ifdef CONFIG_SEC_DEBUG
+		} else if (!strncmp(cmd, "sec_debug_hw_reset", 18)) {
+			param_restart_reason = 0x776655ee;
+#endif
+        } else if (!strncmp(cmd, "download", 8)) {
+		    param_restart_reason = 0x12345671;
+		} else if (!strncmp(cmd, "nvbackup", 8)) {
+				param_restart_reason = 0x77665511;
+		} else if (!strncmp(cmd, "nvrestore", 9)) {
+				param_restart_reason = 0x77665512;
+		} else if (!strncmp(cmd, "nverase", 7)) {
+				param_restart_reason = 0x77665514;
+		} else if (!strncmp(cmd, "nvrecovery", 10)) {
+				param_restart_reason = 0x77665515;
+		} else if (!strncmp(cmd, "sud", 3)) {
+				param_restart_reason = (0xabcf0000 | (cmd[3] - '0'));
+		} else if (!strncmp(cmd, "debug", 5)
+						&& !kstrtoul(cmd + 5, 0, &value)) {
+				param_restart_reason =(0xabcd0000 | value);
+		} else if (!strncmp(cmd, "cpdebug", 7) /*  set cp debug level */
+						&& !kstrtoul(cmd + 7, 0, &value)) {
+				param_restart_reason = (0xfedc0000 | value);
+#if defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
+		} else if (!strncmp(cmd, "swsel", 5) /* set switch value */
+		&& !kstrtoul(cmd + 5, 0, &value)) {
+		param_restart_reason = (0xabce0000 | value);
+#endif
+		} else if (!strncmp(cmd, "edl", 3)) {
+			param_restart_reason = 0x0; // Hack. Fix it later
+		} else if (strlen(cmd) == 0) {
+		    printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
+		        param_restart_reason = 0x12345678;
+#ifdef CONFIG_SEC_PERIPHERAL_SECURE_CHK
+		} else if (!strncmp(cmd, "peripheral_hw_reset", 19)) {
+			param_restart_reason = 0x77665507;
+#endif
+		} else if (!strncmp(cmd, "diag", 4)
+				&& !kstrtoul(cmd + 4, 0, &value)) {
+			param_restart_reason = (0xabcc0000 | value);
+		} else {
+			param_restart_reason = 0x77665501;
+		}
+	}
+#ifdef CONFIG_SEC_DEBUG
+	else {
+		param_restart_reason = 0x0; // Hack. Fix it later
+	}
+#endif
+	printk(KERN_NOTICE "%s : param_restart_reason = 0x%x\n",
+			__func__,param_restart_reason);
+	/* In case of Hard reset IMEM contents are lost, hence writing param_restart_reason to param partition */
+	printk(KERN_NOTICE "%s: Write PARAM_RESTART_REASON 0x%x to param \n",__func__,param_restart_reason);
+	sec_set_param(param_index_restart_reason, &param_restart_reason);
+}
+EXPORT_SYMBOL(sec_param_restart_reason);
+#endif
 
 #ifdef CONFIG_USER_RESET_DEBUG
 static int set_reset_reason_proc_show(struct seq_file *m, void *v)

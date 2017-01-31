@@ -241,6 +241,9 @@ static int msm_cpufreq_verify(struct cpufreq_policy *policy)
 
 static unsigned int msm_cpufreq_get_freq(unsigned int cpu)
 {
+	if (is_clk && is_sync)
+		cpu = 0;
+
 	if (is_clk)
 		return clk_get_rate(cpu_clk[cpu]) / 1000;
 
@@ -358,10 +361,8 @@ static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 			if (rc < 0)
 				return NOTIFY_BAD;
 			rc = clk_prepare(cpu_clk[cpu]);
-			if (rc < 0) {
-				clk_unprepare(l2_clk);
+			if (rc < 0)
 				return NOTIFY_BAD;
-			}
 			update_l2_bw(&cpu);
 		}
 		break;
@@ -371,10 +372,8 @@ static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 			if (rc < 0)
 				return NOTIFY_BAD;
 			rc = clk_enable(cpu_clk[cpu]);
-			if (rc) {
-				clk_disable(l2_clk);
+			if (rc < 0)
 				return NOTIFY_BAD;
-			}
 		}
 		break;
 	default:

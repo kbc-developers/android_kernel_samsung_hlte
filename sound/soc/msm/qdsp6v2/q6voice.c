@@ -29,7 +29,7 @@
 #include "q6voice.h"
 
 
-#define TIMEOUT_MS 500
+#define TIMEOUT_MS 300
 
 
 #define CMD_STATUS_SUCCESS 0
@@ -53,6 +53,7 @@ static bool module_initialized;
 static int loopback_mode = 0;
 static int loopback_prev_mode = 0;
 static int dha_state = 0;
+static int In_roaming = 0;
 
 int voc_get_loopback_enable(void)
 {
@@ -66,6 +67,19 @@ void voc_set_loopback_enable(int mode)
 	
 	pr_info("%s : prev_mode = %d, mode = %d\n",
 		__func__, loopback_prev_mode, mode);	
+}
+
+int voc_get_roaming_enable(void)
+{
+	return In_roaming;
+}
+
+void voc_set_roaming_enable(int mode)
+{
+	In_roaming = mode;
+	
+	pr_info("%s : In_roaming = %d, mode = %d\n",
+		__func__, In_roaming, mode);	
 }
 
 static int voice_send_enable_vocproc_cmd(struct voice_data *v);
@@ -113,7 +127,9 @@ static int voice_alloc_oob_shared_mem(void);
 static int voice_free_oob_shared_mem(void);
 static int voice_alloc_oob_mem_table(void);
 static int voice_alloc_and_map_cal_mem(struct voice_data *v);
-static int voice_alloc_and_map_oob_mem(struct voice_data *v);
+static int voice_alloc_and_map_oob_mem(struct voice_data *v);		
+static int voc_disable_cvp(uint32_t session_id);
+static int voc_enable_cvp(uint32_t session_id);
 
 static struct voice_data *voice_get_session_by_idx(int idx);
 
@@ -478,7 +494,8 @@ static void init_session_id(void)
 
 static int voice_apr_register(void)
 {
-#if !defined(CONFIG_MACH_MONDRIAN_WIFI)
+#if !defined(CONFIG_MACH_MONDRIAN_WIFI) && !defined(CONFIG_SEC_MILLETWIFI_COMMON) && !defined(CONFIG_SEC_MATISSEWIFI_COMMON) \
+	&& !defined(CONFIG_SEC_RUBENSWIFI_COMMON)
 	void *modem_mvm, *modem_cvs, *modem_cvp;
 #endif
 	pr_debug("%s\n", __func__);
@@ -497,7 +514,8 @@ static int voice_apr_register(void)
 			pr_err("%s: Unable to register MVM\n", __func__);
 			goto err;
 		}
-#if !defined(CONFIG_MACH_MONDRIAN_WIFI)
+#if !defined(CONFIG_MACH_MONDRIAN_WIFI) && !defined(CONFIG_SEC_MILLETWIFI_COMMON) && !defined(CONFIG_SEC_MATISSEWIFI_COMMON) \
+		&& !defined(CONFIG_SEC_RUBENSWIFI_COMMON)
 		/*
 		 * Register with modem for SSR callback. The APR handle
 		 * is not stored since it is used only to receive notifications
@@ -524,7 +542,8 @@ static int voice_apr_register(void)
 			goto err;
 		}
 		rtac_set_voice_handle(RTAC_CVS, common.apr_q6_cvs);
-#if !defined(CONFIG_MACH_MONDRIAN_WIFI)
+#if !defined(CONFIG_MACH_MONDRIAN_WIFI) && !defined(CONFIG_SEC_MILLETWIFI_COMMON) && !defined(CONFIG_SEC_MATISSEWIFI_COMMON) \
+		&& !defined(CONFIG_SEC_RUBENSWIFI_COMMON)
 		/*
 		 * Register with modem for SSR callback. The APR handle
 		 * is not stored since it is used only to receive notifications
@@ -551,8 +570,9 @@ static int voice_apr_register(void)
 			goto err;
 		}
 		rtac_set_voice_handle(RTAC_CVP, common.apr_q6_cvp);
-		
-#if !defined(CONFIG_MACH_MONDRIAN_WIFI)
+
+#if !defined(CONFIG_MACH_MONDRIAN_WIFI) && !defined(CONFIG_SEC_MILLETWIFI_COMMON) && !defined(CONFIG_SEC_MATISSEWIFI_COMMON) \
+		&& !defined(CONFIG_SEC_RUBENSWIFI_COMMON)
 		/*
 		 * Register with modem for SSR callback. The APR handle
 		 * is not stored since it is used only to receive notifications
@@ -702,9 +722,20 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 				"default volte voice",
 				strlen("default volte voice")+1);
 			} else if (is_voice2_session(v->session_id)) {
+				if(In_roaming == true)	{  //MSM 2nd call
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				VOICE2_SESSION_VSID_STR,
+				sizeof(mvm_session_cmd.mvm_session.name));
+				}
+				else	{  //QSC call
+				strlcpy(mvm_session_cmd.mvm_session.name,
+#ifdef CONFIG_DSDA_VIA_UART
+				"default modem voice2",
+#else
+				VOICE2_SESSION_VSID_STR,
+#endif /* CONFIG_DSDA_VIA_UART */
 				strlen(VOICE2_SESSION_VSID_STR)+1);
+				}
 			} else if (is_qchat_session(v->session_id)) {
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				QCHAT_SESSION_VSID_STR,
@@ -800,9 +831,20 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 				"default volte voice",
 				strlen("default volte voice")+1);
 			} else if (is_voice2_session(v->session_id)) {
+				if(In_roaming == true)	{  //MSM 2nd call
 				strlcpy(cvs_session_cmd.cvs_session.name,
 				VOICE2_SESSION_VSID_STR,
+				sizeof(cvs_session_cmd.cvs_session.name));
+				}
+				else	{  //QSC call
+				strlcpy(cvs_session_cmd.cvs_session.name,
+#ifdef CONFIG_DSDA_VIA_UART
+				"default modem voice2",
+#else
+				VOICE2_SESSION_VSID_STR,
+#endif /* CONFIG_DSDA_VIA_UART */
 				strlen(VOICE2_SESSION_VSID_STR)+1);
+				}
 			} else if (is_qchat_session(v->session_id)) {
 				strlcpy(cvs_session_cmd.cvs_session.name,
 				QCHAT_SESSION_VSID_STR,
@@ -1110,39 +1152,37 @@ static int voice_send_tty_mode_cmd(struct voice_data *v)
 	}
 	mvm_handle = voice_get_mvm_handle(v);
 
-	if (v->tty_mode) {
-		/* send tty mode cmd to mvm */
-		mvm_tty_mode_cmd.hdr.hdr_field = APR_HDR_FIELD(
-						APR_MSG_TYPE_SEQ_CMD,
-						APR_HDR_LEN(APR_HDR_SIZE),
-						APR_PKT_VER);
-		mvm_tty_mode_cmd.hdr.pkt_size = APR_PKT_SIZE(APR_HDR_SIZE,
-						sizeof(mvm_tty_mode_cmd) -
-						APR_HDR_SIZE);
-		pr_debug("%s: pkt size = %d\n",
-			 __func__, mvm_tty_mode_cmd.hdr.pkt_size);
-		mvm_tty_mode_cmd.hdr.src_port =
-				voice_get_idx_for_session(v->session_id);
-		mvm_tty_mode_cmd.hdr.dest_port = mvm_handle;
-		mvm_tty_mode_cmd.hdr.token = 0;
-		mvm_tty_mode_cmd.hdr.opcode = VSS_ISTREAM_CMD_SET_TTY_MODE;
-		mvm_tty_mode_cmd.tty_mode.mode = v->tty_mode;
-		pr_debug("tty mode =%d\n", mvm_tty_mode_cmd.tty_mode.mode);
+	/* send tty mode cmd to mvm */
+	mvm_tty_mode_cmd.hdr.hdr_field = APR_HDR_FIELD(
+					APR_MSG_TYPE_SEQ_CMD,
+					APR_HDR_LEN(APR_HDR_SIZE),
+					APR_PKT_VER);
+	mvm_tty_mode_cmd.hdr.pkt_size = APR_PKT_SIZE(APR_HDR_SIZE,
+					sizeof(mvm_tty_mode_cmd) -
+					APR_HDR_SIZE);
+	pr_debug("%s: pkt size = %d\n",
+		 __func__, mvm_tty_mode_cmd.hdr.pkt_size);
+	mvm_tty_mode_cmd.hdr.src_port =
+			voice_get_idx_for_session(v->session_id);
+	mvm_tty_mode_cmd.hdr.dest_port = mvm_handle;
+	mvm_tty_mode_cmd.hdr.token = 0;
+	mvm_tty_mode_cmd.hdr.opcode = VSS_ISTREAM_CMD_SET_TTY_MODE;
+	mvm_tty_mode_cmd.tty_mode.mode = v->tty_mode;
+	pr_debug("tty mode =%d\n", mvm_tty_mode_cmd.tty_mode.mode);
 
-		v->mvm_state = CMD_STATUS_FAIL;
-		ret = apr_send_pkt(apr_mvm, (uint32_t *) &mvm_tty_mode_cmd);
-		if (ret < 0) {
-			pr_err("%s: Error %d sending SET_TTY_MODE\n",
-			       __func__, ret);
-			goto fail;
-		}
-		ret = wait_event_timeout(v->mvm_wait,
-					 (v->mvm_state == CMD_STATUS_SUCCESS),
-					 msecs_to_jiffies(TIMEOUT_MS));
-		if (!ret) {
-			pr_err("%s: wait_event timeout\n", __func__);
-			goto fail;
-		}
+	v->mvm_state = CMD_STATUS_FAIL;
+	ret = apr_send_pkt(apr_mvm, (uint32_t *) &mvm_tty_mode_cmd);
+	if (ret < 0) {
+		pr_err("%s: Error %d sending SET_TTY_MODE\n",
+		       __func__, ret);
+		goto fail;
+	}
+	ret = wait_event_timeout(v->mvm_wait,
+				 (v->mvm_state == CMD_STATUS_SUCCESS),
+				 msecs_to_jiffies(TIMEOUT_MS));
+	if (!ret) {
+		pr_err("%s: wait_event timeout\n", __func__);
+		goto fail;
 	}
 	return 0;
 fail:
@@ -3254,9 +3294,9 @@ static int voice_setup_vocproc(struct voice_data *v)
 
 		voice_send_netid_timing_cmd(v);
 	}
-
-	/* enable slowtalk if st_enable is set */
-	if (v->st_enable)
+	
+	
+	if (v->st_enable && !v->tty_mode)
 		voice_send_set_pp_enable_cmd(v,
 					     MODULE_ID_VOICE_MODULE_ST,
 					     v->st_enable);
@@ -4036,15 +4076,8 @@ static int voice_cvs_start_record(struct voice_data *v, uint32_t rec_mode)
 		cvs_start_record.hdr.token = 0;
 		cvs_start_record.hdr.opcode = VSS_IRECORD_CMD_START;
 
-		// In order to enable stereo recording,
-		// i.e. TX on the left and RX on the right
-		// the respective ports need to be explicitly specified:
-		// INCALL_RECORD_TX => 0x8003
-		// INCALL_RECORD_RX => 0x8004
-		/*cvs_start_record.rec_mode.port_id =
-					VSS_IRECORD_PORT_ID_DEFAULT; */
 		cvs_start_record.rec_mode.port_id =
-					VSS_IRECORD_PORT_ID_TX_RX;
+					VSS_IRECORD_PORT_ID_DEFAULT;
 		if (rec_mode == VOC_REC_UPLINK) {
 			cvs_start_record.rec_mode.rx_tap_point =
 					VSS_IRECORD_TAP_POINT_NONE;
@@ -4067,9 +4100,6 @@ static int voice_cvs_start_record(struct voice_data *v, uint32_t rec_mode)
 			ret = -EINVAL;
 			goto fail;
 		}
-
-		// request stereo recording
-		cvs_start_record.rec_mode.mode = VSS_IRECORD_MODE_TX_RX_STEREO;
 
 		v->cvs_state = CMD_STATUS_FAIL;
 
@@ -4478,7 +4508,7 @@ int voc_start_playback(uint32_t set, uint16_t port_id)
 	return ret;
 }
 
-int voc_disable_cvp(uint32_t session_id)
+ static int voc_disable_cvp(uint32_t session_id)
 {
 	struct voice_data *v = voice_get_session(session_id);
 	int ret = 0;
@@ -4513,7 +4543,7 @@ fail:	mutex_unlock(&v->lock);
 	return ret;
 }
 
-int voc_enable_cvp(uint32_t session_id)
+static int voc_enable_cvp(uint32_t session_id)
 {
 	struct voice_data *v = voice_get_session(session_id);
 	int ret = 0;
@@ -4585,10 +4615,8 @@ int voc_enable_cvp(uint32_t session_id)
 			goto fail;
 		}
 
-		/* Send tty mode if tty device is used */
 		voice_send_tty_mode_cmd(v);
-		/* enable slowtalk */
-		if (v->st_enable)
+		if (v->st_enable && !v->tty_mode)
 			voice_send_set_pp_enable_cmd(v,
 					     MODULE_ID_VOICE_MODULE_ST,
 					     v->st_enable);
@@ -4787,9 +4815,9 @@ int voc_set_pp_enable(uint32_t session_id, uint32_t module_id, uint32_t enable)
 			if (module_id == MODULE_ID_VOICE_MODULE_ST)
 				v->st_enable = enable;
 
-			if (v->voc_state == VOC_RUN) {
-				if (module_id ==
-				    MODULE_ID_VOICE_MODULE_ST)
+			if (v->voc_state == VOC_RUN) {		    
+				if ((module_id == MODULE_ID_VOICE_MODULE_ST) &&
+					(!v->tty_mode))
 					ret = voice_send_set_pp_enable_cmd(v,
 						MODULE_ID_VOICE_MODULE_ST,
 						enable);
@@ -4981,11 +5009,11 @@ int voc_standby_voice_call(uint32_t session_id)
 	u16 mvm_handle;
 	int ret = 0;
 
-	pr_debug("%s: voc state=%d", __func__, v->voc_state);
 	if (v == NULL) {
 		pr_err("%s: v is NULL\n", __func__);
 		return -EINVAL;
 	}
+	pr_debug("%s: voc state=%d", __func__, v->voc_state);
 	if (v->voc_state == VOC_RUN) {
 		apr_mvm = common.apr_q6_mvm;
 		if (!apr_mvm) {
@@ -5018,6 +5046,110 @@ int voc_standby_voice_call(uint32_t session_id)
 		v->voc_state = VOC_STANDBY;
 	}
 fail:
+	return ret;
+}
+
+int voc_disable_device(uint32_t session_id)
+{
+	struct voice_data *v = voice_get_session(session_id);
+	int ret = 0;
+
+	pr_debug("%s: voc state=%d\n", __func__, v->voc_state);
+	if (v == NULL) {
+		pr_err("%s: v is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	mutex_lock(&v->lock);
+	if (v->voc_state == VOC_RUN) {
+		ret = voice_pause_voice_call(v);
+		if (ret < 0) {
+			pr_err("%s: Pause Voice Call failed for session 0x%x, err %d!\n",
+			       __func__, v->session_id, ret);
+			goto done;
+		}
+		rtac_remove_voice(voice_get_cvs_handle(v));
+		voice_send_cvp_deregister_vol_cal_cmd(v);
+		voice_send_cvp_deregister_cal_cmd(v);
+		voice_send_cvp_deregister_dev_cfg_cmd(v);
+
+		v->voc_state = VOC_CHANGE;
+	} else {
+		pr_debug("%s: called in voc state=%d, No_OP\n",
+			 __func__, v->voc_state);
+	}
+
+	if (common.ec_ref_ext)
+		voc_set_ext_ec_ref(AFE_PORT_INVALID, false);
+done:
+	mutex_unlock(&v->lock);
+
+	return ret;
+}
+
+int voc_enable_device(uint32_t session_id)
+{
+	struct voice_data *v = voice_get_session(session_id);
+	int ret = 0;
+
+	pr_debug("%s: voc state=%d\n", __func__, v->voc_state);
+	if (v == NULL) {
+		pr_err("%s: v is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	mutex_lock(&v->lock);
+	if (v->voc_state == VOC_CHANGE) {
+		ret = voice_send_tty_mode_cmd(v);
+		if (ret < 0) {
+			pr_err("%s: Sending TTY mode failed, ret=%d\n",
+			       __func__, ret);
+			/* Not a critical error, allow voice call to continue */
+		}
+
+		if (v->tty_mode) {
+			/* disable slowtalk */
+			voice_send_set_pp_enable_cmd(v,
+						     MODULE_ID_VOICE_MODULE_ST,
+						     0);
+		} else {
+			/* restore slowtalk */
+			voice_send_set_pp_enable_cmd(v,
+						     MODULE_ID_VOICE_MODULE_ST,
+						     v->st_enable);
+		}
+
+		ret = voice_send_set_device_cmd(v);
+		if (ret < 0) {
+			pr_err("%s: Set device failed, ret=%d\n",
+			       __func__, ret);
+			goto done;
+		}
+
+		voice_send_cvp_register_dev_cfg_cmd(v);
+		voice_send_cvp_register_cal_cmd(v);
+		voice_send_cvp_register_vol_cal_cmd(v);
+
+		rtac_add_voice(voice_get_cvs_handle(v),
+			       voice_get_cvp_handle(v),
+			       v->dev_rx.port_id, v->dev_tx.port_id,
+			       v->session_id);
+
+		ret = voice_send_start_voice_cmd(v);
+		if (ret < 0) {
+			pr_err("%s: Fail in sending START_VOICE, ret=%d\n",
+			       __func__, ret);
+			goto done;
+		}
+		v->voc_state = VOC_RUN;
+	} else {
+		pr_debug("%s: called in voc state=%d, No_OP\n",
+			 __func__, v->voc_state);
+	}
+
+done:
+	mutex_unlock(&v->lock);
+
 	return ret;
 }
 
@@ -5283,11 +5415,17 @@ static int voice_send_dha_data(struct voice_data *v)
 	vpcm_dha_param_send_cmd.hdr.src_port = voice_get_idx_for_session(v->session_id);
 	vpcm_dha_param_send_cmd.hdr.dest_port = cvp_handle;
 	vpcm_dha_param_send_cmd.hdr.token = 0;
+#if defined(CONFIG_MACH_S3VE3G_EUR) || defined(CONFIG_MACH_MS01_EUR_3G) || defined(CONFIG_MACH_MS01_EUR_LTE) || defined(CONFIG_MACH_MS01_KOR_LTE) || defined(CONFIG_DSDA_VIA_UART)
+	vpcm_dha_param_send_cmd.hdr.opcode = VSS_ICOMMON_CMD_SET_UI_PROPERTY;
+#else
 	vpcm_dha_param_send_cmd.hdr.opcode = VOICE_CMD_SET_PARAM;
+#endif
 
+#if !defined(CONFIG_MACH_S3VE3G_EUR) && !defined(CONFIG_MACH_MS01_EUR_3G) && !defined(CONFIG_MACH_MS01_EUR_LTE) && !defined(CONFIG_MACH_MS01_KOR_LTE) && !defined(CONFIG_DSDA_VIA_UART)
 	vpcm_dha_param_send_cmd.mem_handle = 0;
 	vpcm_dha_param_send_cmd.mem_address = 0;
 	vpcm_dha_param_send_cmd.mem_size = 40;
+#endif
 
 	vpcm_dha_param_send_cmd.dha_send.module_id = VOICE_MODULE_DHA;
 	vpcm_dha_param_send_cmd.dha_send.param_id = VOICE_PARAM_DHA_DYNAMIC;
@@ -5341,6 +5479,33 @@ fail:
 int voice_sec_set_dha_data(uint32_t session_id, short mode,
 			short select, short *parameters)
 {
+#if defined(CONFIG_MACH_S3VE3G_EUR) || defined(CONFIG_MACH_MS01_EUR_3G) || defined(CONFIG_MACH_MS01_EUR_LTE) || defined(CONFIG_MACH_MS01_KOR_LTE) || defined(CONFIG_DSDA_VIA_UART)
+	struct voice_data *v = NULL;
+	int ret = 0;
+	int i = 0;
+	struct voice_session_itr itr;
+	voice_itr_init(&itr, session_id);
+
+	while (voice_itr_get_next_session(&itr, &v)) {
+		if (v != NULL) {
+			mutex_lock(&v->lock);
+			v->sec_dha_data.dha_mode = mode;
+			v->sec_dha_data.dha_select = select;
+			for (i = 0; i < 12; i++)
+				v->sec_dha_data.dha_params[i] = (short)parameters[i];
+			if (is_voc_state_active(v->voc_state) &&
+				(v->lch_mode == 0))
+				ret = voice_send_dha_data(v);
+			mutex_unlock(&v->lock);
+		} else {
+			pr_err("%s: invalid session_id 0x%x\n", __func__,
+				session_id);
+			ret = -EINVAL;
+			break;
+		}
+	}
+
+#else
 	struct voice_data *v = voice_get_session(session_id);
 	int ret = 0;
 	int i;
@@ -5362,10 +5527,11 @@ int voice_sec_set_dha_data(uint32_t session_id, short mode,
 	if (v->voc_state == VOC_RUN)
 		ret = voice_send_dha_data(v);
 		mutex_unlock(&v->lock);
+#endif
 
 	return ret;
-
 }
+
 EXPORT_SYMBOL(voice_sec_set_dha_data);
 #endif /* CONFIG_SEC_DHA_SOL_MAL*/
 
@@ -5867,6 +6033,9 @@ static int32_t qdsp_cvp_callback(struct apr_client_data *data, void *priv)
 			case VSS_IVOCPROC_CMD_DEREGISTER_CALIBRATION_DATA:
 			case VSS_IVOCPROC_CMD_REGISTER_DEVICE_CONFIG:
 			case VSS_IVOCPROC_CMD_DEREGISTER_DEVICE_CONFIG:
+#if defined(CONFIG_MACH_S3VE3G_EUR) || defined(CONFIG_MACH_MS01_EUR_3G) || defined(CONFIG_MACH_MS01_EUR_LTE) || defined(CONFIG_MACH_MS01_KOR_LTE) || defined(CONFIG_DSDA_VIA_UART)
+			case VSS_ICOMMON_CMD_SET_UI_PROPERTY:
+#endif
 			case VSS_ICOMMON_CMD_MAP_MEMORY:
 			case VSS_ICOMMON_CMD_UNMAP_MEMORY:
 			case VSS_IVOLUME_CMD_MUTE_V2:

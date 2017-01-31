@@ -22,7 +22,7 @@
 /* WACOM NOISE from LCD OSC.
  * read Vsync frequency value at wacom firmware.
  */
-#ifdef CONFIG_SEC_H_PROJECT
+#if defined(CONFIG_SEC_H_PROJECT)
 #define USE_WACOM_LCD_WORKAROUND
 #else
 #undef USE_WACOM_LCD_WORKAROUND
@@ -43,18 +43,17 @@
 #define WACOM_MAX_FW_PATH		64
 #define WACOM_FW_NAME_W9001		"epen/W9001_B911.bin"
 #if defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_HLTELGT) ||\
-	defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI) 
+	defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
 #define WACOM_FW_NAME_W9010		"epen/W9010_0208.bin"
 #else
 #define WACOM_FW_NAME_W9010		"epen/W9010_0174.bin"
 #endif
-#define WACOM_FW_NAME_W9010_B934		"epen/W9010_0076.bin"
 
 #ifdef CONFIG_SEC_LT03_PROJECT 
-#define WACOM_FW_NAME_W9007_BL92		"epen/W9007A_0260.bin"
-#define WACOM_FW_NAME_W9007_BL91		"epen/W9007A_0260.bin"
+#define WACOM_FW_NAME_W9007_BL92		"epen/W9007A_0267.bin"
+#define WACOM_FW_NAME_W9007_BL91		"epen/W9007A_0267.bin"
 #else
-#define WACOM_FW_NAME_W9007_BL92		"epen/W9007A_020A.bin"
+#define WACOM_FW_NAME_W9007_BL92		"epen/W9007A_0450.bin"
 #define WACOM_FW_NAME_W9007_BL91		"epen/W9007_0200.bin"
 #endif
 
@@ -80,6 +79,10 @@ extern unsigned int system_rev;
 #define COM_QUERY          0x2A
 #define COM_FLASH          0xff
 #define COM_CHECKSUM       0x63
+
+#if defined(CONFIG_SEC_LT03_PROJECT) || defined(CONFIG_SEC_VIENNA_PROJECT)
+#define WACOM_RESETPIN_DELAY
+#endif
 
 /*I2C address for digitizer and its boot loader*/
 #define WACOM_I2C_ADDR 0x56
@@ -152,16 +155,6 @@ extern unsigned int system_rev;
 #define EPEN_B713_ORG_X 676
 #define EPEN_B713_ORG_Y 724
 
-#define WACOM_BOOSTER
-#ifdef WACOM_BOOSTER
-#define DVFS_STAGE_TRIPLE	3
-#define DVFS_STAGE_DUAL		2
-#define DVFS_STAGE_SINGLE		1
-#define DVFS_STAGE_NONE		0
-#define TOUCH_BOOSTER_OFF_TIME	500
-#define TOUCH_BOOSTER_CHG_TIME	130
-#endif
-
 #define BATTERY_SAVING_MODE
 #define WACOM_CONNECTION_CHECK
 /**************/
@@ -224,15 +217,6 @@ struct wacom_i2c {
 #if defined(CONFIG_SEC_LT03_PROJECT) || defined(CONFIG_SEC_VIENNA_PROJECT)
 	struct mutex irq_lock;
 #endif
-#ifdef WACOM_BOOSTER
-	struct delayed_work	work_dvfs_off;
-	struct delayed_work	work_dvfs_chg;
-	struct mutex		dvfs_lock;
-	bool dvfs_lock_status;
-	int dvfs_old_stauts;
-	int dvfs_boost_mode;
-	int dvfs_freq;
-#endif
 
 	struct device	*dev;
 	int irq;
@@ -254,6 +238,9 @@ struct wacom_i2c {
 	struct delayed_work pen_insert_dwork;
 	bool pen_insert;
 	int gpio_pen_insert;
+#endif
+#ifdef WACOM_RESETPIN_DELAY
+	struct delayed_work work_wacom_reset;
 #endif
 	int invert_pen_insert;
 #ifdef WACOM_HAVE_FWE_PIN

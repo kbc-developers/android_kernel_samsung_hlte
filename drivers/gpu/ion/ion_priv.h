@@ -19,7 +19,6 @@
 #define _ION_PRIV_H
 
 #include <linux/ion.h>
-#include <linux/dma-direction.h>
 #include <linux/kref.h>
 #include <linux/mm_types.h>
 #include <linux/mutex.h>
@@ -50,8 +49,9 @@ struct ion_buffer *ion_handle_buffer(struct ion_handle *handle);
  * @vaddr:		the kenrel mapping if kmap_cnt is not zero
  * @dmap_cnt:		number of times the buffer is mapped for dma
  * @sg_table:		the sg table for the buffer if dmap_cnt is not zero
- * @pages:		flat array of pages in the buffer -- used by fault
- *			handler and only valid for buffers that are faulted in
+ * @dirty:		bitmask representing which pages of this buffer have
+ *			been dirtied by the cpu and need cache maintenance
+ *			before dma
  * @vmas:		list of vma's mapping this buffer
  * @handle_count:	count of handles referencing this buffer
  * @task_comm:		taskcomm of last client to reference this buffer in a
@@ -78,7 +78,7 @@ struct ion_buffer {
 	void *vaddr;
 	int dmap_cnt;
 	struct sg_table *sg_table;
-	struct page **pages;
+	unsigned long *dirty;
 	struct list_head vmas;
 	/* used to track orphaned buffers */
 	int handle_count;
@@ -121,6 +121,11 @@ struct ion_heap_ops {
 	void (*unmap_user) (struct ion_heap *mapper, struct ion_buffer *buffer);
 	int (*print_debug)(struct ion_heap *heap, struct seq_file *s,
 			   const struct list_head *mem_map);
+	int (*secure_heap)(struct ion_heap *heap, int version, void *data);
+	int (*unsecure_heap)(struct ion_heap *heap, int version, void *data);
+	int (*secure_buffer)(struct ion_buffer *buffer, int version,
+				void *data, int flags);
+	int (*unsecure_buffer)(struct ion_buffer *buffer, int force_unsecure);
 };
 
 /**
@@ -218,6 +223,7 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap);
 
 struct pages_mem {
 	struct page **pages;
+	u32 size;
 	void (*free_fn) (const void *);
 };
 
@@ -232,6 +238,8 @@ int ion_heap_map_user(struct ion_heap *, struct ion_buffer *,
 int ion_heap_pages_zero(struct page **pages, int num_pages);
 int ion_heap_buffer_zero(struct ion_buffer *buffer);
 int ion_heap_high_order_page_zero(struct page *page, int order);
+int ion_heap_alloc_pages_mem(struct pages_mem *pages_mem);
+void ion_heap_free_pages_mem(struct pages_mem *pages_mem);
 
 /**
  * ion_heap_init_deferred_free -- initialize deferred free functionality
@@ -246,7 +254,7 @@ int ion_heap_init_deferred_free(struct ion_heap *heap);
 /**
  * ion_heap_freelist_add - add a buffer to the deferred free list
  * @heap:		the heap
- * @buffer:		the buffer
+ * @buffer: 		the buffer
  *
  * Adds an item to the deferred freelist.
  */
@@ -381,17 +389,6 @@ void ion_page_pool_free(struct ion_page_pool *, struct page *);
  */
 int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 			  int nr_to_scan);
-
-/**
- * ion_pages_sync_for_device - cache flush pages for use with the specified
- *                             device
- * @dev:		the device the pages will be used with
- * @page:		the first page to be flushed
- * @size:		size in bytes of region to be flushed
- * @dir:		direction of dma transfer
- */
-void ion_pages_sync_for_device(struct device *dev, struct page *page,
-		size_t size, enum dma_data_direction dir);
 
 int ion_walk_heaps(struct ion_client *client, int heap_id, void *data,
 			int (*f)(struct ion_heap *heap, void *data));

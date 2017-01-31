@@ -71,7 +71,94 @@
 #define UART_SPS_PROD_PERIPHERAL 1
 
 static void *ipc_msm_hs_log_ctxt;
-#define IPC_MSM_HS_LOG_PAGES 5
+#define IPC_MSM_HS_LOG_PAGES 30
+
+
+#define _DW_ENABLED
+
+#ifdef _DW_ENABLED
+#define MAX_DUALWAVE_MESSAGE_SIZE 128
+
+#include <linux/syscalls.h>
+#include <asm/uaccess.h>
+
+#define DUALWAVE_INACTIVE	0
+#define DUALWAVE_PLAYBACK	1
+#define DUALWAVE_CAPTURE	2
+
+extern int send_uevent_wh_ble_info(char *prEnvInfoLists[3]);
+extern int checkDualWaveStatus(void);
+
+#define GET_CUR_TIME_ON(tCurTimespec)											\
+	do {																		\
+		long int llErrTime = 0;													\
+		struct timespec tMyTime;												\
+		mm_segment_t tOldfs;													\
+		tOldfs = get_fs();														\
+		set_fs(KERNEL_DS);														\
+																				\
+		llErrTime = sys_clock_gettime(CLOCK_REALTIME, &tMyTime);				\
+		set_fs(tOldfs);															\
+																				\
+		tCurTimespec = tMyTime;													\
+	}while(0)
+
+char *g_szSysTime;
+char *g_szRefTime;	
+
+inline void UpdateTime(char *pchBuffer, int iLen)
+{
+	struct timespec tSysTimespec;
+	char *pEnv[3];
+
+
+	int iRead=0;
+	int iEventLength=0;
+	int iNumHciCmdPackets=0;
+	unsigned short *psCmdOpCode =NULL;
+	int iStatus = 0;
+	unsigned int *puiBtClock;
+
+	GET_CUR_TIME_ON(tSysTimespec);
+
+	g_szSysTime = kzalloc(MAX_DUALWAVE_MESSAGE_SIZE, GFP_KERNEL);
+	g_szRefTime = kzalloc(MAX_DUALWAVE_MESSAGE_SIZE, GFP_KERNEL);
+
+	pEnv[0] = g_szSysTime;
+	pEnv[1] = g_szRefTime;
+	pEnv[2] = NULL;
+
+
+	switch (pchBuffer[iRead++])
+	{
+		case 0x04:
+		{
+			if(pchBuffer[iRead++] == 0x0E)
+			{
+				iEventLength = pchBuffer[iRead++];
+				iNumHciCmdPackets = pchBuffer[iRead++];
+				psCmdOpCode = (short*) (pchBuffer+iRead); iRead += 2;
+				iStatus = pchBuffer[iRead++];
+				puiBtClock = (unsigned int*)(pchBuffer+iRead); iRead +=4;
+				if ( *psCmdOpCode == (unsigned short)0xFCEE && iStatus == 0x00)
+				{
+					sprintf(g_szSysTime,"SYS_TIME=%ld.%09ld",tSysTimespec.tv_sec,tSysTimespec.tv_nsec);
+					sprintf(g_szRefTime,"BT_CLK=%d",*puiBtClock);
+					send_uevent_wh_ble_info(pEnv);
+				}
+			}
+		}
+		break;
+		default:
+		break;
+	}
+
+	kfree(g_szSysTime);
+	kfree(g_szRefTime);
+
+}
+
+#endif
 
 /* If the debug_mask gets set to FATAL_LEV,
  * a fatal error has happened and further IPC logging
@@ -86,7 +173,7 @@ enum {
 };
 
 /* Default IPC log level INFO */
-static int hs_serial_debug_mask = INFO_LEV;
+static int hs_serial_debug_mask = DBG_LEV;
 module_param_named(debug_mask, hs_serial_debug_mask,
 		   int, S_IRUGO | S_IWUSR | S_IWGRP);
 
@@ -249,6 +336,7 @@ struct msm_hs_port {
 	int rx_count_callback;
 	bool rx_bam_inprogress;
 	wait_queue_head_t bam_disconnect_wait;
+
 };
 
 static struct of_device_id msm_hs_match_table[] = {
@@ -270,6 +358,7 @@ static struct of_device_id msm_hs_match_table[] = {
 #define BLSP_UART_CLK_FMAX 63160000
 
 static struct dentry *debug_base;
+static struct msm_hs_port q_uart_port[UARTDM_NR];
 static struct platform_driver msm_serial_hs_platform_driver;
 static struct uart_driver msm_hs_driver;
 static struct uart_ops msm_hs_ops;
@@ -281,6 +370,21 @@ static struct msm_hs_port *msm_hs_get_hs_port(int port_index);
 
 #define UARTDM_TO_MSM(uart_port) \
 	container_of((uart_port), struct msm_hs_port, uport)
+
+struct uart_port * msm_hs_get_port_by_id(int num)
+{
+	struct uart_port *uport;
+	struct msm_hs_port *msm_uport;
+
+	if (num < 0 || num >= UARTDM_NR)
+		return NULL;
+
+	msm_uport = &q_uart_port[num];
+
+	uport = &(msm_uport->uport);
+
+	return uport;
+}
 
 static int msm_hs_ioctl(struct uart_port *uport, unsigned int cmd,
 						unsigned long arg)
@@ -512,10 +616,20 @@ static int sps_rx_disconnect(struct sps_pipe *sps_pipe_handler)
 
 static void hex_dump_ipc(char *prefix, char *string, int size)
 {
-	char linebuf[512];
+	unsigned char linebuf[512];
+	unsigned char firstbuf[40], lastbuf[40];
 
-	hex_dump_to_buffer(string, size, 16, 1, linebuf, sizeof(linebuf), 1);
-	MSM_HS_DBG("%s : %s", prefix, linebuf);
+	if ((hs_serial_debug_mask != DBG_LEV) && (size > 20)) {
+		hex_dump_to_buffer(string, 10, 16, 1,
+				firstbuf, sizeof(firstbuf), 1);
+		hex_dump_to_buffer(string + (size - 10), 10, 16, 1,
+				lastbuf, sizeof(lastbuf), 1);
+		MSM_HS_INFO("%s : %s...%s", prefix, firstbuf, lastbuf);
+	} else {
+			hex_dump_to_buffer(string, size, 16, 1,
+					linebuf, sizeof(linebuf), 1);
+			MSM_HS_INFO("%s : %s", prefix, linebuf);
+	}
 }
 
 /*
@@ -1512,6 +1626,14 @@ static void msm_serial_hs_rx_tlet(unsigned long tlet_ptr)
 			msm_uport->rx.buffer_pending |= CHARS_NORMAL |
 				retval << 5 | (rx_count - retval) << 16;
 		}
+	#ifdef _DW_ENABLED
+		else
+		{
+			if (checkDualWaveStatus() != DUALWAVE_INACTIVE) {
+				UpdateTime(msm_uport->rx.buffer, rx_count);
+			}
+		}
+	#endif
 	}
 	if (!msm_uport->rx.buffer_pending && !msm_uport->rx.rx_cmd_queued) {
 		msm_uport->rx.flush = FLUSH_NONE;

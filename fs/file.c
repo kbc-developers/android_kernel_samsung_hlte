@@ -33,7 +33,7 @@ int sysctl_nr_open_min = BITS_PER_LONG;
 int sysctl_nr_open_max = 1024 * 1024; /* raised later */
 
 #ifdef CONFIG_SEC_FILE_LEAK_DEBUG
-extern void	sec_debug_EMFILE_error_proc(void);
+extern void	sec_debug_EMFILE_error_proc(unsigned long files_addr);
 #endif
 
 /*
@@ -51,7 +51,7 @@ static void *alloc_fdmem(size_t size)
 	 * vmalloc() if the allocation size will be considered "large" by the VM.
 	 */
 	if (size <= (PAGE_SIZE << PAGE_ALLOC_COSTLY_ORDER)) {
-		void *data = kmalloc(size, GFP_KERNEL|__GFP_NOWARN);
+		void *data = kmalloc(size, GFP_KERNEL|__GFP_NOWARN|__GFP_NORETRY);
 		if (data != NULL)
 			return data;
 	}
@@ -222,7 +222,7 @@ static int expand_fdtable(struct files_struct *files, int nr)
 	if (unlikely(new_fdt->max_fds <= nr)) {
 
 #ifdef CONFIG_SEC_FILE_LEAK_DEBUG
-		sec_debug_EMFILE_error_proc();
+		sec_debug_EMFILE_error_proc((unsigned long)files);
 #endif
 		__free_fdtable(new_fdt);
 		return -EMFILE;
@@ -267,7 +267,7 @@ int expand_files(struct files_struct *files, int nr)
 	if (nr >= sysctl_nr_open) {
 
 #ifdef CONFIG_SEC_FILE_LEAK_DEBUG
-		sec_debug_EMFILE_error_proc();
+		sec_debug_EMFILE_error_proc((unsigned long)files);
 #endif
 		return -EMFILE;
 	}
@@ -341,7 +341,7 @@ struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 		if (unlikely(new_fdt->max_fds < open_files)) {
 
 #ifdef CONFIG_SEC_FILE_LEAK_DEBUG
-			sec_debug_EMFILE_error_proc();
+			sec_debug_EMFILE_error_proc((unsigned long)oldf);
 #endif
 			__free_fdtable(new_fdt);
 			*errorp = -EMFILE;
@@ -462,7 +462,7 @@ repeat:
 	error = -EMFILE;
 	if (fd >= end) {
 #ifdef CONFIG_SEC_FILE_LEAK_DEBUG
-		sec_debug_EMFILE_error_proc();
+		sec_debug_EMFILE_error_proc((unsigned long)files);
 #endif
 		goto out;
 	}

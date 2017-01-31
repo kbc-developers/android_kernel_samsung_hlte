@@ -143,27 +143,6 @@ struct cpp_hw_info {
 #define VIDIOC_MSM_CPP_DEQUEUE_STREAM_BUFF_INFO \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 7, struct msm_camera_v4l2_ioctl_t)
 
-#define VIDIOC_MSM_VPE_CFG \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 8, struct msm_camera_v4l2_ioctl_t)
-
-#define VIDIOC_MSM_VPE_TRANSACTION_SETUP \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 9, struct msm_camera_v4l2_ioctl_t)
-
-#define VIDIOC_MSM_VPE_GET_EVENTPAYLOAD \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 10, struct msm_camera_v4l2_ioctl_t)
-
-#define VIDIOC_MSM_VPE_GET_INST_INFO \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct msm_camera_v4l2_ioctl_t)
-
-#define VIDIOC_MSM_VPE_ENQUEUE_STREAM_BUFF_INFO \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 12, struct msm_camera_v4l2_ioctl_t)
-
-#define VIDIOC_MSM_VPE_DEQUEUE_STREAM_BUFF_INFO \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct msm_camera_v4l2_ioctl_t)
-
-#define VIDIOC_MSM_CPP_QUEUE_BUF \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 14, struct msm_camera_v4l2_ioctl_t)
-
 #define VIDIOC_MSM_CPP_APPEND_STREAM_BUFF_INFO \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct msm_camera_v4l2_ioctl_t)
 
@@ -171,6 +150,7 @@ struct cpp_hw_info {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, struct msm_camera_v4l2_ioctl_t)	
 	
 #define V4L2_EVENT_CPP_FRAME_DONE  (V4L2_EVENT_PRIVATE_START + 0)
+#define V4L2_EVENT_COMPANION_IRQ_IN  (V4L2_EVENT_PRIVATE_START + 1)
 
 struct msm_camera_v4l2_ioctl_t {
 	uint32_t id;

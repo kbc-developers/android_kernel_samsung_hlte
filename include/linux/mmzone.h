@@ -151,6 +151,13 @@ enum zone_stat_item {
 #endif
 	NR_ANON_TRANSPARENT_HUGEPAGES,
 	NR_FREE_CMA_PAGES,
+#if defined(CONFIG_CMA_PAGE_COUNTING)
+	NR_CMA_INACTIVE_ANON,
+	NR_CMA_ACTIVE_ANON,
+	NR_CMA_INACTIVE_FILE,
+	NR_CMA_ACTIVE_FILE,
+	NR_CMA_UNEVICTABLE,
+#endif
 	NR_VM_ZONE_STAT_ITEMS };
 
 /*
@@ -706,7 +713,7 @@ typedef struct pglist_data {
 					     range, including holes */
 	int node_id;
 	wait_queue_head_t kswapd_wait;
-	struct task_struct *kswapd;
+	struct task_struct *kswapd;	/* Protected by lock_memory_hotplug() */
 	int kswapd_max_order;
 	enum zone_type classzone_idx;
 } pg_data_t;

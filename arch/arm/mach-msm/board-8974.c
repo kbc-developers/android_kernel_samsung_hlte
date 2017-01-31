@@ -31,6 +31,9 @@
 #include <mach/board.h>
 #include <mach/gpiomux.h>
 #include <mach/msm_iomap.h>
+#ifdef CONFIG_ION_MSM
+#include <mach/ion.h>
+#endif
 #include <mach/msm_memtypes.h>
 #include <mach/msm_smd.h>
 #include <mach/restart.h>
@@ -42,9 +45,6 @@
 #include <mach/socinfo.h>
 #include <mach/msm_smem.h>
 #include <linux/module.h>
-#ifdef CONFIG_ANDROID_PERSISTENT_RAM
-#include <linux/persistent_ram.h>
-#endif
 
 #include "board-dt.h"
 #include "clock.h"
@@ -78,6 +78,15 @@ extern int msm_show_resume_irq_mask;
 #include <linux/leds-max77804k.h>
 #endif
 
+#ifdef CONFIG_LEDS_MAX77888
+#include <linux/leds-max77888.h>
+#endif
+
+#ifdef CONFIG_LEDS_MAX77828
+#include <linux/leds-max77828.h>
+#include <linux/leds.h>
+#endif
+
 #include <linux/i2c.h>
 #ifdef CONFIG_MFD_MAX77803
 #ifdef CONFIG_LEDS_MAX77803
@@ -90,25 +99,35 @@ extern int msm_show_resume_irq_mask;
 #include <mach/msm8974-thermistor.h>
 #endif
 
-#ifdef CONFIG_ANDROID_PERSISTENT_RAM
-/* CONFIG_SEC_DEBUG reserving memory for persistent RAM*/
-#define RAMCONSOLE_PHYS_ADDR 0x1FB00000
-static struct persistent_ram_descriptor per_ram_descs[] __initdata = {
-{
-	.name = "ram_console",
-	.size = SZ_1M,
-}
-};
-
-static struct persistent_ram per_ram __initdata = {
-	.descs = per_ram_descs,
-	.num_descs = ARRAY_SIZE(per_ram_descs),
-	.start = RAMCONSOLE_PHYS_ADDR,
-	.size = SZ_1M
-};
+#ifdef CONFIG_SEC_PATEK_PROJECT
+#include "board-patek-keypad.c"
 #endif
 
 extern int poweroff_charging;
+
+#ifdef CONFIG_SEC_S_PROJECT
+static struct regulator *vsensor_1p8;
+static int __init sensor_init(void)
+{
+	int ret;
+
+	if(poweroff_charging)
+		return 0;
+
+	vsensor_1p8 = regulator_get(NULL, "8084_lvs1");
+	if (IS_ERR(vsensor_1p8))
+		pr_err("[SENSOR] could not get 8084_lvs1, %ld\n",
+			PTR_ERR(vsensor_1p8));
+
+
+	ret = regulator_enable(vsensor_1p8);
+	if (ret)
+		pr_err("%s: error enabling regulator 1p8\n", __func__);
+
+	pr_info("%s: power on\n", __func__);
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_SENSORS_SSP
 static struct regulator *vsensor_2p85, *vsensor_1p8;
@@ -170,6 +189,55 @@ struct max77804k_led_platform_data max77804k_led_pdata = {
 	.leds[1].id = MAX77804K_TORCH_LED_1,
 	.leds[1].cntrl_mode = MAX77804K_LED_CTRL_BY_FLASHSTB,
 	.leds[1].brightness = 0x06,
+};
+#endif
+
+#ifdef CONFIG_LEDS_MAX77888
+struct max77888_led_platform_data max77888_led_pdata = {
+	.num_leds = 2,
+
+	.leds[0].name = "leds-sec1",
+	.leds[0].id = MAX77888_FLASH_LED_1,
+	.leds[0].timer = MAX77888_FLASH_TIME_187P5MS,
+	.leds[0].timer_mode = MAX77888_TIMER_MODE_MAX_TIMER,
+	.leds[0].cntrl_mode = MAX77888_LED_CTRL_BY_FLASHSTB,
+	.leds[0].brightness = 0x3D,
+
+	.leds[1].name = "torch-sec1",
+	.leds[1].id = MAX77888_TORCH_LED_1,
+	.leds[1].cntrl_mode = MAX77888_LED_CTRL_BY_FLASHSTB,
+	.leds[1].brightness = 0x06,
+};
+#endif
+
+#ifdef CONFIG_LEDS_MAX77828
+struct max77828_led_platform_data max77828_led_pdata = {
+        .num_leds = 5,
+
+        .leds[0].name = "leds-sec1",
+	.leds[0].default_trigger = "flash",
+        .leds[0].id = MAX77828_FLASH,
+        .leds[0].brightness = MAX77828_FLASH_IOUT,
+
+        .leds[1].name = "torch-sec1",
+	.leds[1].default_trigger = "torch",
+        .leds[1].id = MAX77828_TORCH,
+        .leds[1].brightness = MAX77828_TORCH_IOUT,
+
+        .leds[2].name = "led_r",
+        .leds[2].id = MAX77828_RGB_R,
+        .leds[2].brightness = (int)LED_OFF,
+        .leds[2].max_brightness = MAX77828_LED_CURRENT,
+
+        .leds[3].name = "led_g",
+        .leds[3].id = MAX77828_RGB_G,
+        .leds[3].brightness = (int)LED_OFF,
+        .leds[3].max_brightness = MAX77828_LED_CURRENT,
+
+        .leds[4].name = "led_b",
+        .leds[4].id = MAX77828_RGB_B,
+        .leds[4].brightness = (int)LED_OFF,
+        .leds[4].max_brightness = MAX77828_LED_CURRENT,
 };
 #endif
 
@@ -264,22 +332,60 @@ MAX77826_VREG_CONSUMERS(BUCK1) = {
 MAX77826_VREG_CONSUMERS(BUCK2) = {
 	REGULATOR_SUPPLY("max77826_buck2",	NULL),
 };
-
-MAX77826_VREG_INIT(LDO1, 1050000, 1050000, 0);
+#if defined(CONFIG_SEC_S_PROJECT)
+MAX77826_VREG_INIT(LDO1, 1100000, 1100000, 0); /* ES705 VDD_CORE 1.1V */
+#else
+MAX77826_VREG_INIT(LDO1, 1200000, 1200000, 0);
+#endif
 MAX77826_VREG_INIT(LDO2, 1000000, 1000000, 0);
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+MAX77826_VREG_INIT(LDO3, 1800000, 1800000, 0);
+MAX77826_VREG_INIT(LDO4, 1800000, 2950000, 0);
+#else
 MAX77826_VREG_INIT(LDO3, 1200000, 1200000, 0);
 MAX77826_VREG_INIT(LDO4, 1800000, 1800000, 0);
+#endif
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+MAX77826_VREG_INIT(LDO5, 2800000, 2800000, 0);
+#else
 MAX77826_VREG_INIT(LDO5, 1800000, 1800000, 0);
-MAX77826_VREG_INIT(LDO6, 1800000, 1800000, 0);
+#endif
+MAX77826_VREG_INIT(LDO6, 1800000, 3300000, 0);
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+MAX77826_VREG_INIT(LDO7, 2500000, 2500000, 0);
+#else
 MAX77826_VREG_INIT(LDO7, 1800000, 1800000, 0);
-MAX77826_VREG_INIT(LDO8, 1800000, 1800000, 0);
+#endif
+MAX77826_VREG_INIT(LDO8, 1800000, 3300000, 0);
+#if defined(CONFIG_SEC_PATEK_PROJECT)
 MAX77826_VREG_INIT(LDO9, 1800000, 1800000, 0);
-MAX77826_VREG_INIT(LDO10, 2800000, 2800000, 0);
-MAX77826_VREG_INIT(LDO11, 2700000, 2800000, 0);
-MAX77826_VREG_INIT(LDO12, 3300000, 3300000, 0);
+MAX77826_VREG_INIT(LDO10, 2950000, 2950000, 0);
+#elif defined(CONFIG_MACH_CHAGALL_KDI)
+MAX77826_VREG_INIT(LDO9, 1000000, 3000000, 0);
+MAX77826_VREG_INIT(LDO10, 2800000, 2950000, 0);
+#else
+MAX77826_VREG_INIT(LDO9, 1800000, 1800000, 0);
+MAX77826_VREG_INIT(LDO10, 2800000, 2950000, 0);
+#endif
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+MAX77826_VREG_INIT(LDO11, 1800000, 3000000, 0);
+#else
+MAX77826_VREG_INIT(LDO11, 2700000, 2950000, 0);
+#endif
+MAX77826_VREG_INIT(LDO12, 2500000, 3300000, 0);
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+MAX77826_VREG_INIT(LDO13, 3000000, 3000000, 0);
+#else
 MAX77826_VREG_INIT(LDO13, 3300000, 3300000, 0);
+#endif
+#if defined(CONFIG_SEC_S_PROJECT)
+MAX77826_VREG_INIT(LDO14, 2800000, 2800000, 0); /* EAR MICBIAS 2.8V */
+#elif defined(CONFIG_SEC_PATEK_PROJECT)
+MAX77826_VREG_INIT(LDO14, 1800000, 3300000, 0);
+#else
 MAX77826_VREG_INIT(LDO14, 3300000, 3300000, 0);
-MAX77826_VREG_INIT(LDO15, 3300000, 3300000, 0);
+#endif
+MAX77826_VREG_INIT(LDO15, 1800000, 3300000, 0);
 MAX77826_VREG_INIT(BUCK1, 1225000, 1225000, 0);
 MAX77826_VREG_INIT(BUCK2, 3400000, 3400000, 0);
 
@@ -317,17 +423,38 @@ static struct i2c_board_info max77826_pmic_info[] __initdata = {
 };
 #endif /* CONFIG_REGULATOR_MAX77826 */
 
+static struct memtype_reserve msm8974_reserve_table[] __initdata = {
+	[MEMTYPE_SMI] = {
+	},
+	[MEMTYPE_EBI0] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+	[MEMTYPE_EBI1] = {
+		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
+	},
+};
+
+static int msm8974_paddr_to_memtype(phys_addr_t paddr)
+{
+	return MEMTYPE_EBI1;
+}
+
+static struct reserve_info msm8974_reserve_info __initdata = {
+	.memtype_reserve_table = msm8974_reserve_table,
+	.paddr_to_memtype = msm8974_paddr_to_memtype,
+};
+
 void __init msm_8974_reserve(void)
 {
-	of_scan_flat_dt(dt_scan_for_memory_reserve, NULL);
-#ifdef CONFIG_ANDROID_PERSISTENT_RAM
-	persistent_ram_early_init(&per_ram);
-#endif
+	reserve_info = &msm8974_reserve_info;
+	of_scan_flat_dt(dt_scan_for_memory_reserve, msm8974_reserve_table);
+	msm_reserve();
 }
 
 static void __init msm8974_early_memory(void)
 {
-	of_scan_flat_dt(dt_scan_for_memory_hole, NULL);
+	reserve_info = &msm8974_reserve_info;
+	of_scan_flat_dt(dt_scan_for_memory_hole, msm8974_reserve_table);
 }
 
 #ifdef CONFIG_MFD_MAX77803
@@ -369,7 +496,6 @@ static void samsung_sys_class_init(void)
 		pr_err("Failed to create class(sec)!\n");
 		return;
 	}
-					
 };
 
 /*
@@ -437,8 +563,6 @@ static struct of_dev_auxdata msm8974_auxdata_lookup[] __initdata = {
 			"msm-tsens", NULL),
 	OF_DEV_AUXDATA("qcom,qcedev", 0xFD440000, \
 			"qcedev.0", NULL),
-	OF_DEV_AUXDATA("qcom,qcrypto", 0xFD440000, \
-			"qcrypto.0", NULL),
 	OF_DEV_AUXDATA("qcom,hsic-host", 0xF9A00000, \
 			"msm_hsic_host", NULL),
 	OF_DEV_AUXDATA("qcom,hsic-smsc-hub", 0, "msm_smsc_hub",
@@ -482,8 +606,15 @@ void __init msm8974_init(void)
 	i2c_register_board_info(MAX77826_I2C_BUS_ID, max77826_pmic_info,
 		ARRAY_SIZE(max77826_pmic_info));
 #endif
+#ifdef CONFIG_SEC_S_PROJECT
+	sensor_init();
+#endif
 #ifdef CONFIG_SENSORS_SSP
 	sensor_hub_init();
+#endif
+
+#ifdef CONFIG_SEC_PATEK_PROJECT
+	platform_device_register(&folder_keypad_device);
 #endif
 
 #ifdef CONFIG_SEC_PM_DEBUG

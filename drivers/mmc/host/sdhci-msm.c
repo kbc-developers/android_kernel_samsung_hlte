@@ -37,7 +37,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/mmc/cd-gpio.h>
 #include <linux/dma-mapping.h>
-#if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)
+#if defined(CONFIG_ARCH_MSM8974)\
+	|| defined(CONFIG_MACH_FRESCOLTESKT)||defined(CONFIG_MACH_FRESCOLTEKTT)||defined(CONFIG_MACH_FRESCOLTELGT)
 #include <linux/regulator/consumer.h>
 #include <mach/rpm-regulator.h>
 #include <mach/rpm-regulator-smd.h>
@@ -210,7 +211,8 @@ module_param(disable_slots, int, S_IRUGO|S_IWUSR);
 struct sdhci_msm_reg_data {
 	/* voltage regulator handle */
 	struct regulator *reg;
-#if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)
+#if defined(CONFIG_ARCH_MSM8974)\
+	|| defined(CONFIG_MACH_FRESCOLTESKT)||defined(CONFIG_MACH_FRESCOLTEKTT)||defined(CONFIG_MACH_FRESCOLTELGT)
 	/* rpm regulator */
 	struct rpm_regulator *rpm_reg;
 #endif
@@ -312,7 +314,7 @@ struct sdhci_msm_pltfm_data {
 	struct sdhci_msm_pin_data *pin_data;
 	u32 cpu_dma_latency_us;
 	int status_gpio; /* card detection GPIO that is configured as IRQ */
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)
 	int ls_gpio; /* level shifter gpio */
 #endif
 	struct sdhci_msm_bus_voting_data *voting_data;
@@ -914,6 +916,14 @@ retry:
 		memset(data_buf, 0, size);
 		mmc_wait_for_req(mmc, &mrq);
 
+		/*
+		 * wait for 146 MCLK cycles for the card to send out the data
+		 * and thus move to TRANS state. As the MCLK would be minimum
+		 * 200MHz when tuning is performed, we need maximum 0.73us
+		 * delay. To be on safer side 1ms delay is given.
+		 */
+		if (cmd.error)
+			usleep_range(1000, 1200);
 		if (!cmd.error && !data.error &&
 			!memcmp(data_buf, tuning_block_pattern, size)) {
 			/* tuning is successful at this tuning point */
@@ -1092,10 +1102,12 @@ static int sdhci_msm_dt_parse_vreg_info(struct device *dev,
 	struct device_node *np = dev->of_node;
 
 	snprintf(prop_name, MAX_PROP_SIZE, "%s-supply", vreg_name);
+#if !defined(CONFIG_SEC_PATEK_PROJECT)
 	if (!of_parse_phandle(np, prop_name, 0)) {
 		dev_info(dev, "No vreg data found for %s\n", vreg_name);
 		return ret;
 	}
+#endif
 
 	vreg = devm_kzalloc(dev, sizeof(*vreg), GFP_KERNEL);
 	if (!vreg) {
@@ -1103,6 +1115,28 @@ static int sdhci_msm_dt_parse_vreg_info(struct device *dev,
 		ret = -ENOMEM;
 		return ret;
 	}
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+	if (!strcmp(dev_name(dev), "msm_sdcc.3")) {
+		if (!strcmp(vreg_name, "vdd")) {
+			vreg->reg = regulator_get(dev, "max77826_ldo10");
+			dev_info(dev, "max77826_ldo10 is for %s\n", vreg_name);
+		}
+		else if (!strcmp(vreg_name, "vdd-io")) {
+			vreg->reg = regulator_get(dev, "max77826_ldo4");
+			dev_info(dev, "max77826_ldo4 is for %s\n", vreg_name);
+		}
+
+		if (IS_ERR(vreg->reg))
+			vreg->reg = NULL;
+
+		if (!vreg->reg)
+			dev_err(dev, "Settng Regulator for %s is failed\n", vreg_name);
+		else if (!strcmp(vreg_name, "vdd-io")) {
+			vreg->set_voltage_sup = true;
+			regulator_set_voltage(vreg->reg, 2950000, 2950000);
+		}
+	}
+#endif
 
 	vreg->name = vreg_name;
 
@@ -1410,7 +1444,7 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev)
 	pdata->status_gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, &flags);
 	if (gpio_is_valid(pdata->status_gpio) & !(flags & OF_GPIO_ACTIVE_LOW))
 		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)
 	pdata->ls_gpio = of_get_named_gpio_flags(np, "ls-gpios", 0, 0);
 #endif
 
@@ -1823,7 +1857,13 @@ static int sdhci_msm_vreg_enable(struct sdhci_msm_reg_data *vreg)
 {
 	int ret = 0;
 
-#if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)
+	if (!vreg->reg) {
+		pr_err("%s: %s Cannot find Regulator\n", __func__, vreg->name);
+		return ret;
+	}
+
+#if defined(CONFIG_ARCH_MSM8974)\
+	|| defined(CONFIG_MACH_FRESCOLTESKT)||defined(CONFIG_MACH_FRESCOLTEKTT)||defined(CONFIG_MACH_FRESCOLTELGT)
 	if (vreg->rpm_reg) {
 		ret = rpm_regulator_set_mode(vreg->rpm_reg,
 						 RPM_REGULATOR_MODE_HPM);
@@ -1861,6 +1901,11 @@ static int sdhci_msm_vreg_enable(struct sdhci_msm_reg_data *vreg)
 static int sdhci_msm_vreg_disable(struct sdhci_msm_reg_data *vreg)
 {
 	int ret = 0;
+
+	if (!vreg->reg) {
+		pr_err("%s: %s Cannot find Regulator\n", __func__, vreg->name);
+		return ret;
+	}
 
 	/* Never disable regulator marked as always_on */
 	if (vreg->is_enabled && !vreg->is_always_on) {
@@ -1907,21 +1952,46 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_pltfm_data *pdata,
 		goto out;
 	}
 
+#if defined(CONFIG_SEC_K_PROJECT)
+	/* 
+	 * In SD Card Case using FPGA, 
+	 * Turn on : vdd_io on -> vdd on
+	 * Turn off : vdd off -> delay 5msec -> vdd_io off
+	 * vdd : L21, vdd_io : L13
+	 */
+	if (pdata->status_gpio && enable)
+	{
+		vreg_table[0] = curr_slot->vdd_io_data;
+		vreg_table[1] = curr_slot->vdd_data;
+	} else {
+		vreg_table[0] = curr_slot->vdd_data;
+		vreg_table[1] = curr_slot->vdd_io_data;
+	}
+#else
 	vreg_table[0] = curr_slot->vdd_data;
 	vreg_table[1] = curr_slot->vdd_io_data;
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(vreg_table); i++) {
 		if (vreg_table[i]) {
 			if (enable)
 				ret = sdhci_msm_vreg_enable(vreg_table[i]);
+#if defined(CONFIG_SEC_K_PROJECT)
+			else {
+				ret = sdhci_msm_vreg_disable(vreg_table[i]);
+				if (pdata->status_gpio && i == 0)
+					mdelay(5);
+			}
+#else
 			else
 				ret = sdhci_msm_vreg_disable(vreg_table[i]);
+#endif
 			if (ret)
 				goto out;
 		}
 	}
 
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)
 	if(pdata->ls_gpio > 0 && gpio_is_valid(pdata->ls_gpio)) {
 		if(enable) {
 			gpio_set_value(pdata->ls_gpio, 1);
@@ -1981,7 +2051,8 @@ static int sdhci_msm_vreg_init(struct device *dev,
 			goto out;
 	}
 	if (curr_vdd_io_reg) {
-#if defined(CONFIG_MACH_HLTESKT)||defined(CONFIG_MACH_HLTEKTT)||defined(CONFIG_MACH_HLTELGT)
+#if defined(CONFIG_ARCH_MSM8974)\
+	|| defined(CONFIG_MACH_FRESCOLTESKT)||defined(CONFIG_MACH_FRESCOLTEKTT)||defined(CONFIG_MACH_FRESCOLTELGT)
 		if (pdata->nonremovable) {
 			/* Only for emmc */
 			curr_vdd_io_reg->rpm_reg = rpm_regulator_get(
@@ -2295,6 +2366,53 @@ static void sdhci_msm_check_power_status(struct sdhci_host *host, u32 req_type)
 		done = true;
 	spin_unlock_irqrestore(&host->lock, flags);
 
+	/* 
+	 * 8974pro after HW_GPIO_06 uses SDR50 Mode 
+	 * KLTE uses SDR50 on SDC3 port.
+	 * Handle I/O voltage switch here if this request is for SDC3. 
+	 * SDC3 Don't use PWR_IRQ.
+	 */
+#if defined(CONFIG_SEC_K_PROJECT)
+	if (strcmp(host->hw_name, "msm_sdcc.3") == 0 && !done && system_rev >= 6) { 
+		if (req_type == REQ_IO_HIGH) {
+			/* Switch voltage High */
+			if (sdhci_msm_set_vdd_io_vol(msm_host->pdata, VDD_IO_HIGH, 0)) {
+				pr_err("%s: %s: Voltage Switch to High is Fail\n", mmc_hostname(host->mmc), __func__);
+				return;
+			}
+			msm_host->curr_io_level = REQ_IO_HIGH;
+			done = true;
+		} else if (req_type == REQ_IO_LOW) { 
+			/* Switch voltage Low */
+			if (sdhci_msm_set_vdd_io_vol(msm_host->pdata, VDD_IO_LOW, 0)) {
+				pr_err("%s: %s: Voltage Switch to Low is Fail\n", mmc_hostname(host->mmc), __func__);
+				return;
+			}
+			msm_host->curr_io_level = REQ_IO_LOW;
+			done = true;
+		}
+	} 
+#elif defined(CONFIG_SEC_PATEK_PROJECT)
+	if (strcmp(host->hw_name, "msm_sdcc.3") == 0 && !done) { 
+		if (req_type == REQ_IO_HIGH) {
+			/* Switch voltage High */
+			if (sdhci_msm_set_vdd_io_vol(msm_host->pdata, VDD_IO_HIGH, 0)) {
+				pr_err("%s: %s: Voltage Switch to High is Fail\n", mmc_hostname(host->mmc), __func__);
+				return;
+			}
+			msm_host->curr_io_level = REQ_IO_HIGH;
+			done = true;
+		} else if (req_type == REQ_IO_LOW) { 
+			/* Switch voltage Low */
+			if (sdhci_msm_set_vdd_io_vol(msm_host->pdata, VDD_IO_LOW, 0)) {
+				pr_err("%s: %s: Voltage Switch to Low is Fail\n", mmc_hostname(host->mmc), __func__);
+				return;
+			}
+			msm_host->curr_io_level = REQ_IO_LOW;
+			done = true;
+		}
+	} 
+#endif
 	/*
 	 * This is needed here to hanlde a case where IRQ gets
 	 * triggered even before this function is called so that
@@ -2386,15 +2504,15 @@ static int sdhci_msm_enable_controller_clock(struct sdhci_host *host)
 		rc = clk_prepare_enable(msm_host->pclk);
 		if (rc) {
 			pr_err("%s: %s: failed to enable the pclk with error %d\n",
-			       mmc_hostname(host->mmc), __func__, rc);
+					mmc_hostname(host->mmc), __func__, rc);
 			goto remove_vote;
 		}
 	}
 
 	rc = clk_prepare_enable(msm_host->clk);
 	if (rc) {
-		pr_err("%s: %s: failed to enable the host-clk with error %d\n",
-		       mmc_hostname(host->mmc), __func__, rc);
+		pr_err("%s: %s: failed to enable the host->clk with error %d\n",
+				mmc_hostname(host->mmc), __func__, rc);
 		goto disable_pclk;
 	}
 
@@ -2413,8 +2531,6 @@ out:
 	return rc;
 }
 
-
-
 static int sdhci_msm_prepare_clocks(struct sdhci_host *host, bool enable)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
@@ -2427,7 +2543,7 @@ static int sdhci_msm_prepare_clocks(struct sdhci_host *host, bool enable)
 
 		/*
 		 * The bus-width or the clock rate might have changed
-		 * after controller clocks are enbaled, update bus vote
+		 * after controller clocks are enabled, update bus vote
 		 * in such case.
 		 */
 		if (atomic_read(&msm_host->controller_clock))
@@ -2805,7 +2921,7 @@ static struct sdhci_ops sdhci_msm_ops = {
 	.enable_controller_clock = sdhci_msm_enable_controller_clock,
 };
 
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)
 static void mmc_enable_ls_gpio(struct sdhci_host *host, unsigned int gpio_no)
 {
 	int status;
@@ -2860,10 +2976,11 @@ static void sdhci_msm_status_notify(int card_present, void *dev_id)
 	struct sdhci_host *host = (struct sdhci_host *)dev_id;
 	unsigned long flags;
 
-	host->mmc->rescan_disable=0;
-	pr_err("%s: %s: rescan_disable : %d\n",mmc_hostname(host->mmc), __func__, host->mmc->rescan_disable);
-
 	if (host) {
+		host->mmc->rescan_disable=0;
+		pr_err("%s: %s: rescan_disable : %d\n",mmc_hostname(host->mmc),
+			__func__, host->mmc->rescan_disable);
+
 		spin_lock_irqsave(&host->lock, flags);
 		if (card_present) {
 			pr_err("%s: card inserted.\n", mmc_hostname(host->mmc));
@@ -2888,7 +3005,15 @@ static ssize_t t_flash_detect_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
-#if defined(CONFIG_MMC_MSM_CARD_HW_DETECTION) || defined(CONFIG_MACH_MONDRIAN)
+#if defined(CONFIG_MACH_SERRANO) || defined(CONFIG_SEC_ATLANTIC_PROJECT)
+	if (msm_host->mmc->card) {
+		printk(KERN_DEBUG "External sd: card inserted.\n");
+		return sprintf(buf, "Insert\n");
+	} else {
+		printk(KERN_DEBUG "External sd: card removed.\n");
+		return sprintf(buf, "Remove\n");
+	}
+#else
 	unsigned int detect;
 
 	if (gpio_is_valid(msm_host->pdata->status_gpio))
@@ -2901,18 +3026,10 @@ static ssize_t t_flash_detect_show(struct device *dev,
 
 	pr_info("%s : detect = %d.\n", __func__, detect);
 	if (!detect) {
-		printk(KERN_DEBUG "sdcc3: card inserted.\n");
+		printk(KERN_DEBUG "External sd: card inserted.\n");
 		return sprintf(buf, "Insert\n");
 	} else {
-		printk(KERN_DEBUG "sdcc3: card removed.\n");
-		return sprintf(buf, "Remove\n");
-	}
-#else
-	if (msm_host->mmc->card) {
-		printk(KERN_DEBUG "sdcc3: card inserted.\n");
-		return sprintf(buf, "Insert\n");
-	} else {
-		printk(KERN_DEBUG "sdcc3: card removed.\n");
+		printk(KERN_DEBUG "External sd: card removed.\n");
 		return sprintf(buf, "Remove\n");
 	}
 #endif
@@ -3123,7 +3240,6 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 	host->quirks |= SDHCI_QUIRK_SINGLE_POWER_WRITE;
 	host->quirks |= SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN;
 	host->quirks2 |= SDHCI_QUIRK2_ALWAYS_USE_BASE_CLOCK;
-	host->quirks2 |= SDHCI_QUIRK2_IGNORE_CMDCRC_FOR_TUNING;
 	host->quirks2 |= SDHCI_QUIRK2_USE_MAX_DISCARD_SIZE;
 	host->quirks2 |= SDHCI_QUIRK2_IGNORE_DATATOUT_FOR_R1BCMD;
 	host->quirks2 |= SDHCI_QUIRK2_BROKEN_PRESET_VALUE;
@@ -3196,16 +3312,15 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 	msm_host->mmc->caps2 |= msm_host->pdata->caps2;
 	msm_host->mmc->caps2 |= (MMC_CAP2_BOOTPART_NOACC |
 				MMC_CAP2_DETECT_ON_ERR);
-	//msm_host->mmc->caps2 |= MMC_CAP2_SANITIZE;
+	/* msm_host->mmc->caps2 |= MMC_CAP2_SANITIZE; */
 	msm_host->mmc->caps2 |= MMC_CAP2_CACHE_CTRL;
 	msm_host->mmc->caps2 |= MMC_CAP2_POWEROFF_NOTIFY;
-	msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;
-	msm_host->mmc->caps2 |= MMC_CAP2_CORE_RUNTIME_PM;
+	/* msm_host->mmc->caps2 &= ~MMC_CAP2_CLK_SCALE; */ /* Disable CLK_SCALE at L UPG */
+	/* msm_host->mmc->caps2 |= MMC_CAP2_CORE_RUNTIME_PM; */
 
 	msm_host->mmc->caps2 |= MMC_CAP2_ASYNC_SDIO_IRQ_4BIT_MODE;
-	msm_host->mmc->pm_caps |= MMC_PM_KEEP_POWER | MMC_PM_WAKE_SDIO_IRQ;
 	msm_host->mmc->caps2 |= MMC_CAP2_CORE_PM;
-	msm_host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
+	msm_host->mmc->pm_caps |= MMC_PM_KEEP_POWER | MMC_PM_WAKE_SDIO_IRQ;
 
 	if (msm_host->pdata->nonremovable)
 		msm_host->mmc->caps |= MMC_CAP_NONREMOVABLE;
@@ -3214,7 +3329,7 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 
 	init_completion(&msm_host->pwr_irq_completion);
 
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)
 	if (msm_host->pdata->ls_gpio || gpio_is_valid(msm_host->pdata->ls_gpio))
 		mmc_enable_ls_gpio(host, msm_host->pdata->ls_gpio);
 #endif
@@ -3237,9 +3352,10 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 		msm_host->pdata->register_status_notify(sdhci_msm_status_notify, host, host->mmc);
 		host->mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY | MMC_PM_KEEP_POWER;
 		host->mmc->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY | MMC_PM_KEEP_POWER;
+#if defined(CONFIG_DEFERRED_INITCALLS)
+		host->mmc->rescan_disable=0;
+#else
 		host->mmc->rescan_disable=1;
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
-		host->mmc->caps |= MMC_CAP_SDIO_IRQ;
 #endif
 		pr_err("%s: id %d, register_status_notify=%x, host=%x, rescan_disable=%d\n",
 			mmc_hostname(msm_host->mmc), msm_host->id,
@@ -3249,10 +3365,12 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 #endif
 
 	/* SYSFS about SD Card Detection by soonil.lim */
-#if defined(CONFIG_MMC_MSM_CARD_HW_DETECTION) || defined(CONFIG_MACH_MONDRIAN)
-	if (t_flash_detect_dev == NULL && gpio_is_valid(msm_host->pdata->status_gpio)) {
-#else
+#if defined(CONFIG_MACH_SERRANO)
 	if (t_flash_detect_dev == NULL && !strcmp(host->hw_name, "msm_sdcc.3")) {
+#elif defined(CONFIG_SEC_ATLANTIC_PROJECT) || defined(CONFIG_MACH_JSGLTE_CHN_CMCC)
+	if (t_flash_detect_dev == NULL && !strcmp(host->hw_name, "msm_sdcc.2")) {
+#else
+	if (t_flash_detect_dev == NULL && gpio_is_valid(msm_host->pdata->status_gpio)) {
 #endif
 		printk(KERN_DEBUG "%s : Change sysfs Card Detect\n", __func__);
 

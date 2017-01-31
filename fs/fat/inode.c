@@ -555,6 +555,7 @@ static void fat_put_super(struct super_block *sb)
 	struct msdos_sb_info *sbi = MSDOS_SB(sb);
 
 	fat_msg(sb, KERN_INFO, "trying to unmount...");
+	ST_LOG("<%s> trying to umount... %d:%d",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));	
 
 	if (sb->s_dirt)
 		fat_write_super(sb);
@@ -571,6 +572,7 @@ static void fat_put_super(struct super_block *sb)
 	kfree(sbi);
 
 	fat_msg(sb, KERN_INFO, "unmounted successfully!");
+	ST_LOG("<%s> unmounted successfully! %d:%d",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));		
 }
 
 static struct kmem_cache *fat_inode_cachep;
@@ -722,7 +724,7 @@ retry:
 				  &raw_entry->adate, NULL);
 	}
 	spin_unlock(&sbi->inode_hash_lock);
-	mark_buffer_dirty(bh);
+	mark_buffer_dirty_sync(bh);
 	err = 0;
 	if (wait)
 		err = sync_dirty_buffer(bh);
@@ -1308,6 +1310,19 @@ static int fat_read_root(struct inode *inode)
 	return 0;
 }
 
+static unsigned long calc_fat_clusters(struct super_block *sb)
+{
+	struct msdos_sb_info *sbi = MSDOS_SB(sb);
+
+	/* Divide first to avoid overflow */
+	if (sbi->fat_bits != 12) {
+		unsigned long ent_per_sec = sb->s_blocksize * 8 / sbi->fat_bits;
+		return ent_per_sec * sbi->fat_length;
+	}
+
+	return sbi->fat_length * sb->s_blocksize * 8 / sbi->fat_bits;
+}
+
 /*
  * Read the super block of an MS-DOS FS.
  */
@@ -1327,6 +1342,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	char buf[50];
 
 	fat_msg(sb, KERN_INFO, "trying to mount...");
+	ST_LOG("<%s> trying to mount... %d:%d",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));	
 	/*
 	 * GFP_KERNEL is ok here, because while we do hold the
 	 * supeblock lock, memory pressure can't call back into
@@ -1336,6 +1352,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	sbi = kzalloc(sizeof(struct msdos_sb_info), GFP_KERNEL);
 	if (!sbi) {
 		fat_msg(sb, KERN_ERR, "failed to mount! (ENOMEM)");
+		ST_LOG("<%s> failed to mount! %d:%d (ENOMEM)",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));		
 		return -ENOMEM;
 	}
 	sb->s_fs_info = sbi;
@@ -1516,7 +1533,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 		sbi->fat_bits = (total_clusters > MAX_FAT12) ? 16 : 12;
 
 	/* check that FAT table does not overflow */
-	fat_clusters = sbi->fat_length * sb->s_blocksize * 8 / sbi->fat_bits;
+	fat_clusters = calc_fat_clusters(sb);
 	total_clusters = min(total_clusters, fat_clusters - FAT_START_ENT);
 	if (total_clusters > MAX_FAT(sb)) {
 		if (!silent)
@@ -1592,6 +1609,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	}
 
 	fat_msg(sb, KERN_INFO, "mounted successfully!");
+	ST_LOG("<%s> mounted successfully! %d:%d",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));
 	return 0;
 
 out_invalid:
@@ -1601,6 +1619,7 @@ out_invalid:
 
 out_fail:
 	fat_msg(sb, KERN_ERR, "failed to mount!");
+	ST_LOG("<%s> failed to mount %d:%d",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));
 	if (fat_inode)
 		iput(fat_inode);
 	unload_nls(sbi->nls_io);

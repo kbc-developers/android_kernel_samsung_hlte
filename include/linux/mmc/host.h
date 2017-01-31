@@ -306,7 +306,7 @@ struct mmc_host {
 
 #define MMC_CAP2_HS400_1_8V	(1 << 21)        /* can support */
 #define MMC_CAP2_HS400_1_2V	(1 << 22)        /* can support */
-#define MMC_CAP2_CORE_PM	(1 << 23)       /* use PM framework */
+#define MMC_CAP2_CORE_PM	(1 << 23)	/* use PM framework */
 #define MMC_CAP2_HS400		(MMC_CAP2_HS400_1_8V | \
 				 MMC_CAP2_HS400_1_2V)
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
@@ -425,6 +425,8 @@ struct mmc_host {
 		bool		enable;
 		bool		initialized;
 		bool		in_progress;
+		/* freq. transitions are not allowed in invalid state */
+		bool		invalid_state;
 		struct delayed_work work;
 		enum mmc_load	state;
 	} clk_scaling;
