@@ -176,9 +176,6 @@
 		an30259a@30 {
 			compatible = "an30259a,led";
 			reg = <0x30>;
-			an30259a,default_current = <0x28>;	/* default 0x28 */
-			an30259a,lowpower_current = <0x05>;	/* lowpower 0x05 */
-			an30259a,offset_current = <0x000028>;	/* R_offset 0x00,G_offset 0x00,B_offset 0x28 */
 		};
 	};
 

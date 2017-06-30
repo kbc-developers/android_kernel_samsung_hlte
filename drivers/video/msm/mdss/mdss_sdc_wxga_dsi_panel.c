@@ -490,7 +490,7 @@ static int mdss_dsi_panel_partial_update(struct mdss_panel_data *pdata)
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
 
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+	pr_debug("%s: ctrl=%pK ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	caset[1] = (((pdata->panel_info.roi_x) & 0xFF00) >> 8);
 	caset[2] = (((pdata->panel_info.roi_x) & 0xFF));
@@ -576,7 +576,6 @@ extern void pwm_backlight_enable(void);
 
 static int samsung_dsi_panel_event_handler(int event)
 {
-	static int first_init = 0;
 	pr_debug("SS DSI Event Handler");
 		switch (event) {
 			case MDSS_EVENT_BACKLIGHT_LATE_ON:
@@ -590,10 +589,6 @@ static int samsung_dsi_panel_event_handler(int event)
 					msleep(1);
 					pwm_backlight_enable();
 					msleep(1);
-					if (!first_init) {
-						mdss_fb_set_backlight(msd.mfd, 255);
-						first_init = 1;
-					}
 					pr_info("SS DSI Event Handler Backlight Late on");
 					}
 					msd.dstat.wait_bl_on = 0;
@@ -619,7 +614,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+	pr_debug("%s: ctrl=%pK ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
@@ -657,7 +652,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		cancel_work_sync(&err_fg_work);
 	}
 #endif
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+	pr_debug("%s: ctrl=%pK ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 #if defined(CONFIG_SEC_T10_PROJECT) || defined(CONFIG_SEC_RUBENS_PROJECT)
 	if (gpio_is_valid(msd.bl_rst_gpio)) {
@@ -766,7 +761,7 @@ static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 
 	return 0;
 }
-int mdss_panel_dt_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
+static int mdss_panel_dt_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
 				char *dst_format)
 {
 	int rc = 0;

@@ -1802,7 +1802,7 @@ static long __snd_timer_user_ioctl(struct file *file, unsigned int cmd,
 	{
 		int xarg;
 
-		if (tu->timeri)	/* too late */
+		if (tu->timeri)
 			return -EBUSY;
 		if (get_user(xarg, p))
 			return -EFAULT;

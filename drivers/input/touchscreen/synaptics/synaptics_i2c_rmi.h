@@ -30,6 +30,10 @@
 #include <linux/earlysuspend.h>
 #endif
 
+#if defined(CONFIG_INPUT_BOOSTER)
+//to enabled common touch booster. This must be included.
+#include <linux/input/input_booster.h>
+#endif
 /* To support suface touch, firmware should support data
  * which is required related app ex) MT_PALM ...
  * Synpatics IC report those data through F51's edge swipe
@@ -41,6 +45,7 @@
 #define DEFAULT_DISABLE	0
 
 /* feature define */
+#define TSP_BOOSTER	/* DVFS feature : TOUCH BOOSTER */
 #define USE_OPEN_CLOSE	/* Use when CONFIG_HAS_EARLYSUSPEND is disabled */
 #define REPORT_2D_W
 #define REDUCE_I2C_DATA_LENGTH
@@ -54,6 +59,7 @@
 #define USE_RECENT_TOUCHKEY
 #define PROXIMITY
 #define EDGE_SWIPE
+#define TKEY_BOOSTER
 #define SYNAPTICS_DEVICE_NAME	"T320"
 #define USE_PALM_REJECTION_KERNEL
 
@@ -72,7 +78,6 @@
 #define SYNAPTICS_DEVICE_NAME	"T707"
 #define USE_PALM_REJECTION_KERNEL
 #define ENABLE_F12_OBJTYPE
-#define READ_LCD_ID
 
 #elif defined(CONFIG_SEC_K_PROJECT)
 #define PROXIMITY
@@ -147,6 +152,7 @@
 #define USE_PALM_REJECTION_KERNEL
 #define USE_EDGE_EXCLUSION
 #define USE_EDGE_SWIPE_WIDTH_MAJOR
+#undef TSP_BOOSTER     ///// temp code for new model setup
 
 #elif defined(CONFIG_SEC_HESTIA_PROJECT)
 #define PROXIMITY
@@ -164,6 +170,7 @@
 #define SYNAPTICS_DEVICE_NAME	"T360"
 #endif
 #undef CONFIG_HAS_EARLYSUSPEND
+#undef TSP_BOOSTER
 /* changes to fix PLM P140707-06422(PALM TOUCH) issue in RUBEN */
 #define PROXIMITY
 #define EDGE_SWIPE
@@ -188,6 +195,7 @@
 #undef CHECK_BASE_FIRMWARE		/* Check base fw version. base fw version is PR number */
 
 #undef TOUCHKEY_ENABLE			/* TSP/Tkey in one chip */
+#undef TKEY_BOOSTER			/* Tkey booster for performance */
 #undef TOUCHKEY_LED_GPIO		/* Tkey led use gpio pin rather than pmic regulator */
 #endif
 
@@ -198,6 +206,21 @@
 #if defined(CONFIG_LEDS_CLASS) && defined(TOUCHKEY_ENABLE)
 #include <linux/leds.h>
 #define TOUCHKEY_BACKLIGHT "button-backlight"
+#endif
+
+#if defined(TSP_BOOSTER) || defined(TKEY_BOOSTER)
+#define DVFS_STAGE_NINTH	9
+#define DVFS_STAGE_PENTA	5
+#define DVFS_STAGE_TRIPLE	3
+#define DVFS_STAGE_DUAL		2
+#define DVFS_STAGE_SINGLE	1
+#define DVFS_STAGE_NONE		0
+#include <linux/cpufreq.h>
+
+#define TOUCH_BOOSTER_OFF_TIME		500
+#define TOUCH_BOOSTER_CHG_TIME		130
+#define TOUCH_BOOSTER_HIGH_OFF_TIME	1000
+#define TOUCH_BOOSTER_HIGH_CHG_TIME	500
 #endif
 
 /* TA_CON mode @ H mode */
@@ -248,7 +271,6 @@
 #define FW_IMAGE_NAME_S5100_HESTIA	"tsp_synaptics/synaptics_s5100_hestia.fw"
 #define FW_IMAGE_NAME_S5707		"tsp_synaptics/synaptics_s5707.fw"
 #define FW_IMAGE_NAME_S5707_KLIMT	"tsp_synaptics/synaptics_s5707_klimt.fw"
-#define FW_IMAGE_NAME_S5707_KLIMT_V16	"tsp_synaptics/synaptics_s5707_klimt_v16.fw"
 #define FW_IMAGE_NAME_S5707_RUBENS	"tsp_synaptics/synaptics_s5707_rubens.fw"
 #define FW_IMAGE_NAME_S5708		"tsp_synaptics/synaptics_s5708.fw"
 #define FW_IMAGE_NAME_S5050		"tsp_synaptics/synaptics_s5050.fw"
@@ -1194,6 +1216,28 @@ struct synaptics_rmi4_data {
 	int bootmode;
 #endif
 
+#ifdef TSP_BOOSTER
+	struct delayed_work	work_dvfs_off;
+	struct delayed_work	work_dvfs_chg;
+	struct mutex		dvfs_lock;
+	bool dvfs_lock_status;
+	int dvfs_old_stauts;
+	int dvfs_boost_mode;
+	int dvfs_freq;
+#endif
+#ifdef TKEY_BOOSTER
+	struct delayed_work	work_tkey_dvfs_off;
+	struct delayed_work	work_tkey_dvfs_chg;
+	struct mutex		tkey_dvfs_lock;
+	bool tkey_dvfs_lock_status;
+	int tkey_dvfs_old_stauts;
+	int tkey_dvfs_boost_mode;
+	int tkey_dvfs_freq;
+#endif
+
+#ifdef COMMON_INPUT_BOOSTER
+	struct input_booster *tsp_booster;
+#endif
 #ifdef USE_HOVER_REZERO
 	struct delayed_work rezero_work;
 #endif

@@ -128,8 +128,6 @@ int hci_uart_tx_wakeup(struct hci_uart *hu)
 
 	BT_DBG("");
 
-	schedule_work(&hu->write_work);
-
 	return 0;
 }
 
@@ -286,8 +284,6 @@ static int hci_uart_tty_open(struct tty_struct *tty)
 	tty->disc_data = hu;
 	hu->tty = tty;
 	tty->receive_room = 65536;
-
-	INIT_WORK(&hu->write_work, hci_uart_write_work);
 
 	spin_lock_init(&hu->rx_lock);
 	tasklet_init(&hu->tty_wakeup_task, hci_uart_tty_wakeup_action,

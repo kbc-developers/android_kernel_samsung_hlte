@@ -39,7 +39,7 @@
 #include "../mount.h"
 #include <linux/lzo.h>
 
-#define SCFS_VERSION "1.2.19"
+#define SCFS_VERSION "1.2.18"
 
 #if MAX_BUFFER_CACHE
 //extern struct read_buffer_cache buffer_cache[];
@@ -463,8 +463,8 @@ static struct dentry *scfs_mount(struct file_system_type *fs_type, int flags,
 			ret = -ENOMEM;
 			goto out_deactivate;
 		}
-		sbi->buffer_cache[i].ino = -1;
-		sbi->buffer_cache[i].clust_num = -1;
+		sbi->buffer_cache[i].inode_number = -1;
+		sbi->buffer_cache[i].cluster_number = -1;
 		sbi->buffer_cache[i].is_compressed = -1;
 		atomic_set(&sbi->buffer_cache[i].is_used, -1);
 	}
@@ -669,10 +669,8 @@ static int scfs_remount_fs(struct super_block *sb, int *flags, char *options)
 		dentry = mnt->mnt_mountpoint;
 		while (dentry->d_parent != dentry) {
 			start -= dentry->d_name.len;
-			if (start < 0) {
-				kfree(dir_name);
+			if (start < 0)
 				return -EINVAL;
-			}
 
 			memcpy(dir_name + start, dentry->d_name.name, dentry->d_name.len); 
 			dir_name[--start] = '/';

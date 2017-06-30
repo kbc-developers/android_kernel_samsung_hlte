@@ -42,7 +42,7 @@
 
 #define CALIBRATION_FILE_PATH           "/efs/accel_calibration_data"
 #define CALIBRATION_DATA_AMOUNT         20
-#define MAX_ACCEL_1G                    4096
+#define MAX_ACCEL_1G			4096
 
 #define BMA280_DEFAULT_DELAY            200000000LL
 #define BMA280_CHIP_ID                  0xFB
@@ -105,7 +105,6 @@ struct bma280_p {
 	int sda_gpio;
 	int scl_gpio;
 	int time_count;
-	u64 ts_old;
 };
 
 static int bma280_open_calibration(struct bma280_p *);
@@ -438,60 +437,20 @@ static void bma280_work_func(struct work_struct *work)
 {
 	int ret;
 	struct bma280_v acc;
-	int time_hi, time_lo;
-	struct timespec time_spec;
-	u64 ts_new, ts_shift, ts;
-	unsigned long delay;
 	struct bma280_p *data = container_of(work, struct bma280_p, work);
-
-	delay = ktime_to_ns(data->poll_delay);
-	time_spec = ktime_to_timespec(alarm_get_elapsed_realtime());
-	ts_new = time_spec.tv_sec * 1000000000ULL + time_spec.tv_nsec;
-	ts_shift = delay >> 1;
-	ts = 0ULL;
 
 	ret = bma280_read_accel_xyz(data, &acc);
 	if (ret < 0)
 		goto exit;
 
-	acc.x = acc.x - data->caldata.x;
-	acc.y = acc.y - data->caldata.y;
-	acc.z = acc.z - data->caldata.z;
-	data->accdata = acc;
+	data->accdata.x = acc.x - data->caldata.x;
+	data->accdata.y = acc.y - data->caldata.y;
+	data->accdata.z = acc.z - data->caldata.z;
 
-	acc.x = (acc.x >= 0) ? (acc.x + 1) : (acc.x - 1);
-	acc.y = (acc.y >= 0) ? (acc.y + 1) : (acc.y - 1);
-	acc.z = (acc.z >= 0) ? (acc.z + 1) : (acc.z - 1);
-
-	if (data->ts_old != 0 && ((ts_new - data->ts_old) * 10 > delay * 18)) {
-		for (ts = data->ts_old + delay; ts < ts_new - ts_shift; ts += delay) {
-			time_hi = (int)((ts & TIME_HI_MASK) >> TIME_HI_SHIFT);
-			time_lo = (int)(ts & TIME_LO_MASK);
-			time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-			time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
-
-			input_report_rel(data->input, REL_X, acc.x);
-			input_report_rel(data->input, REL_Y, acc.y);
-			input_report_rel(data->input, REL_Z, acc.z);
-			input_report_rel(data->input, REL_DIAL, time_hi);
-			input_report_rel(data->input, REL_MISC, time_lo);
-			input_sync(data->input);
-			data->ts_old = ts;
-		}
-	}
-
-	time_hi = (int)((ts_new & TIME_HI_MASK) >> TIME_HI_SHIFT);
-	time_lo = (int)(ts_new & TIME_LO_MASK);
-	time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-	time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
-
-	input_report_rel(data->input, REL_X, acc.x);
-	input_report_rel(data->input, REL_Y, acc.y);
-	input_report_rel(data->input, REL_Z, acc.z);
-	input_report_rel(data->input, REL_DIAL, time_hi);
-	input_report_rel(data->input, REL_MISC, time_lo);
+	input_report_rel(data->input, REL_X, data->accdata.x);
+	input_report_rel(data->input, REL_Y, data->accdata.y);
+	input_report_rel(data->input, REL_Z, data->accdata.z);
 	input_sync(data->input);
-	data->ts_old = ts_new;
 
 exit:
 	if ((ktime_to_ns(data->poll_delay) * (int64_t)data->time_count)
@@ -541,7 +500,6 @@ static ssize_t bma280_enable_store(struct device *dev,
 
 	if (enable) {
 		if (pre_enable == OFF) {
-			data->ts_old = 0ULL;
 			bma280_open_calibration(data);
 			bma280_set_mode(data, BMA280_MODE_NORMAL);
 			atomic_set(&data->enable, ON);
@@ -697,7 +655,7 @@ static int bma280_do_calibrate(struct bma280_p *data, int enable)
 		else
 			bma280_set_mode(data, BMA280_MODE_NORMAL);
 
-		usleep_range(300000, 301000);
+		msleep(300);
 
 		for (cnt = 0; cnt < CALIBRATION_DATA_AMOUNT; cnt++) {
 			bma280_read_accel_xyz(data, &acc);
@@ -800,7 +758,7 @@ static ssize_t bma280_raw_data_read(struct device *dev,
 
 	if (atomic_read(&data->enable) == OFF) {
 		bma280_set_mode(data, BMA280_MODE_NORMAL);
-		usleep_range(20000, 21000);
+		msleep(20);
 		bma280_read_accel_xyz(data, &acc);
 		bma280_set_mode(data, BMA280_MODE_SUSPEND);
 
@@ -1031,8 +989,6 @@ static int bma280_input_init(struct bma280_p *data)
 	input_set_capability(dev, EV_REL, REL_X);
 	input_set_capability(dev, EV_REL, REL_Y);
 	input_set_capability(dev, EV_REL, REL_Z);
-	input_set_capability(dev, EV_REL, REL_DIAL);
-	input_set_capability(dev, EV_REL, REL_MISC);
 	input_set_drvdata(dev, data);
 
 	ret = input_register_device(dev);
@@ -1179,7 +1135,7 @@ static int bma280_probe(struct i2c_client *client,
 				__func__, (unsigned int)ret & 0x00ff);
 			break;
 		}
-		usleep_range(20000, 21000);
+		msleep(20);
 	}
 
 	if (i >= CHIP_ID_RETRIES) {

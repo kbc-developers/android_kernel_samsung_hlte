@@ -12,6 +12,7 @@
 
 #define MAX_NUM_CPP_STRIPS 8
 #define MSM_CPP_MAX_NUM_PLANES 3
+#define MSM_CPP_MAX_FW_NAME_LEN 32
 
 enum msm_cpp_frame_type {
 	MSM_CPP_OFFLINE_FRAME,
@@ -150,7 +151,6 @@ struct cpp_hw_info {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, struct msm_camera_v4l2_ioctl_t)	
 	
 #define V4L2_EVENT_CPP_FRAME_DONE  (V4L2_EVENT_PRIVATE_START + 0)
-#define V4L2_EVENT_COMPANION_IRQ_IN  (V4L2_EVENT_PRIVATE_START + 1)
 
 struct msm_camera_v4l2_ioctl_t {
 	uint32_t id;

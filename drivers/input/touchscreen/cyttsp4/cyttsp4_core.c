@@ -4775,7 +4775,7 @@ int cyttsp4_probe(const struct cyttsp4_bus_ops *ops, struct device *dev,
 	defined(CYTTSP4_PDATA_IN_PLATFORM_C)
 	dev->platform_data = pdata;
 #endif
-	cyttsp4_add_core(dev);
+	cyttsp4_add_core(dev);
 
 	/* Call platform init function */
 	if (cd->cpdata->init) {

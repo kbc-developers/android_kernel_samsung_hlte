@@ -61,6 +61,7 @@ static int scfs_open(struct inode *inode, struct file *file)
 	struct scfs_sb_info *sbi = SCFS_S(inode->i_sb);
 	struct scfs_inode_info *sii = SCFS_I(inode);
 	struct scfs_file_info *fi;
+	void *buf = NULL;
 	int ret = 0;
 	struct file *lower_file;
 
@@ -123,6 +124,10 @@ out:
 		scfs_set_lower_file(file, NULL);
 		kmem_cache_free(scfs_file_info_cache, file->private_data);
 		profile_sub_kmcached(sizeof(struct scfs_file_info), sbi);
+
+		if (buf)
+			scfs_cinfo_free(sii, buf);
+
 		sii->cinfo_array = NULL;
 	}
 	mutex_unlock(&sii->cinfo_mutex);

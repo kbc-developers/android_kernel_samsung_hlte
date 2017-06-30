@@ -332,7 +332,7 @@ typedef volatile U32		VU32;
 			RTV_REG_SET(reg, tmp);											\
 		} while(0)
 	#endif
-#endif
+#endif
 
 #if defined(RTV_IF_EBI2)
 

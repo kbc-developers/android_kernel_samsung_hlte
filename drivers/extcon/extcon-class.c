@@ -62,7 +62,6 @@ const char *extcon_cable_name[CABLE_NAME_MAX + 1] = {
 	[EXTCON_SMARTDOCK]	= "Smart-dock",
 	[EXTCON_SMARTDOCK_TA]	= "Smart-dock-TA",
 	[EXTCON_SMARTDOCK_USB]	= "Smart-dock-USB",
-	[EXTCON_MULTIMEDIADOCK]	= "Multimedia-dock",
 	[EXTCON_JIG_UARTOFF]	= "JIG-UART-OFF",
 	[EXTCON_JIG_UARTOFF_VB]	= "JIG-UART-OFF-VB",
 	[EXTCON_JIG_UARTON]	= "JIG-UART-ON",

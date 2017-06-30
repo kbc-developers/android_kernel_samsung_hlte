@@ -447,23 +447,11 @@ static ssize_t write(struct file *file, const char *buf, size_t count,
         return 0;
     }
 
-#ifdef CONFIG_VIBRATOR_UPDATE
-	/* Check buffer size */
-	if ((count < SPI_HEADER_SIZE) || (count > SPI_BUFFER_SIZE)) {
-		DbgOut((KERN_ERR "tspdrv: invalid write buffer size.\n"));
-		return 0;
-	}
-	if (count == SPI_HEADER_SIZE)
-		g_bOutputDataBufferEmpty = 1;
-	else
-		g_bOutputDataBufferEmpty = 0;
-
-#else
+    /* Check buffer size */
 	if ((count <= SPI_HEADER_SIZE) || (count > SPI_BUFFER_SIZE)) {
-		DbgOut((KERN_ERR "tspdrv: invalid write buffer size.\n"));
-		return 0;
-	}
-#endif
+        DbgOut((KERN_ERR "tspdrv: invalid write buffer size.\n"));
+        return 0;
+    }
 	/* Copy immediately the input buffer */
 	if (0 != copy_from_user(g_cWriteBuffer, buf, count)) {
         /* Failed to copy all the data, exit */
@@ -478,11 +466,7 @@ static ssize_t write(struct file *file, const char *buf, size_t count,
 		samples_buffer* pInputBuffer =	(samples_buffer *)
 			(&g_cWriteBuffer[i]);
 
-#ifdef CONFIG_VIBRATOR_UPDATE
-		if ((i + SPI_HEADER_SIZE) > count) {
-#else
 		if ((i + SPI_HEADER_SIZE) >= count) {
-#endif
             /*
             ** Index is about to go beyond the buffer size.
             ** (Should never happen).
@@ -609,9 +593,6 @@ static long unlocked_ioctl(struct file *file, unsigned int cmd,
             break;
 
         case TSPDRV_MAGIC_NUMBER:
-#ifdef CONFIG_VIBRATOR_UPDATE
-		case TSPDRV_SET_MAGIC_NUMBER:
-#endif
             file->private_data = (void*)TSPDRV_MAGIC_NUMBER;
             break;
 
@@ -630,15 +611,8 @@ static long unlocked_ioctl(struct file *file, unsigned int cmd,
 		  * If a stop was requested, ignore the request as the amp
 		  * will be disabled by the timer proc when it's ready
 		  */
-#ifdef CONFIG_VIBRATOR_UPDATE
-		g_bStopRequested = true;
-		/* Last data processing to disable amp and stop timer */
-		VibeOSKernelProcessData(NULL);
-		g_bIsPlaying = false;
-#else
-		if (!g_bStopRequested)
-			ImmVibeSPI_ForceOut_AmpDisable(arg);
-#endif
+            if(!g_bStopRequested)
+		    ImmVibeSPI_ForceOut_AmpDisable(arg);
 	    wake_unlock(&vib_wake_lock);
             break;
 

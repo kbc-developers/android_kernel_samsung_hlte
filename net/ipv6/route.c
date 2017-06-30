@@ -640,11 +640,11 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
 				 rinfo->prefix_len);
 		prefix = &prefix_buf;
 	}
-
 	if (rinfo->prefix_len == 0)
 		rt = rt6_get_dflt_router(gwaddr, dev);
 	else
-		rt = rt6_get_route_info(dev, prefix, rinfo->prefix_len, gwaddr);
+		rt = rt6_get_route_info(dev, prefix, rinfo->prefix_len,
+				gwaddr);
 
 	if (rt && !lifetime) {
 		ip6_del_rt(rt);
@@ -959,8 +959,6 @@ struct dst_entry * ip6_route_output(struct net *net, const struct sock *sk,
 				    struct flowi6 *fl6)
 {
 	int flags = 0;
-	
-	fl6->flowi6_iif = LOOPBACK_IFINDEX;
 
 	if ((sk && sk->sk_bound_dev_if) || rt6_need_strict(&fl6->daddr))
 		flags |= RT6_LOOKUP_F_IFACE;

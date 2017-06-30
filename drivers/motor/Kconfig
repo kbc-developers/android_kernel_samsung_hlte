@@ -15,10 +15,6 @@ config TACTILE_ASSIST
 	default n
 	depends on VIBETONZ
 
-config VIBRATOR_UPDATE
-	tristate "Immersion Update"
-	default n
-
 config MOTOR_DRV_MAX77803
 	tristate "Maxim MAX77803 motor"
 	default n

@@ -730,7 +730,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 	struct mount *mnt = alloc_vfsmnt(old->mnt_devname);
 
 	if (mnt) {
-		 if (flag & (CL_SLAVE | CL_PRIVATE | CL_SHARED_TO_SLAVE))
+		if (flag & (CL_SLAVE | CL_PRIVATE | CL_SHARED_TO_SLAVE))
 			mnt->mnt_group_id = 0; /* not a peer of original */
 		else
 			mnt->mnt_group_id = old->mnt_group_id;
@@ -1338,7 +1338,7 @@ struct vfsmount *collect_mounts(struct path *path)
 		tree = ERR_PTR(-EINVAL);
 	else
 		tree = copy_tree(real_mount(path->mnt), path->dentry,
-				CL_COPY_ALL | CL_PRIVATE);
+				 CL_COPY_ALL | CL_PRIVATE);
 	up_write(&namespace_sem);
 	return tree ? &tree->mnt : NULL;
 }
@@ -1607,7 +1607,7 @@ static int do_change_type(struct path *path, int flag)
 /*
  * do loopback mount.
  */
-static int do_loopback(struct path *path, char *old_name,
+static int do_loopback(struct path *path, const char *old_name,
 				int recurse)
 {
 	LIST_HEAD(umount_list);
@@ -1711,7 +1711,7 @@ static int do_remount(struct path *path, int flags, int mnt_flags,
 		err = do_remount_sb(sb, flags, data, 0);
 	if (!err) {
 		br_write_lock(vfsmount_lock);
-		mnt_flags |= mnt->mnt.mnt_flags & MNT_PROPAGATION_MASK;
+		mnt_flags |= mnt->mnt.mnt_flags & ~MNT_USER_SETTABLE_MASK;
 		mnt->mnt.mnt_flags = mnt_flags;
 		br_write_unlock(vfsmount_lock);
 	}
@@ -1734,7 +1734,7 @@ static inline int tree_contains_unbindable(struct mount *mnt)
 	return 0;
 }
 
-static int do_move_mount(struct path *path, char *old_name)
+static int do_move_mount(struct path *path, const char *old_name)
 {
 	struct path old_path, parent_path;
 	struct mount *p;
@@ -1867,7 +1867,7 @@ unlock:
  * namespace's tree
  */
 static int do_new_mount(struct path *path, const char *fstype, int flags,
-			int mnt_flags, char *name, void *data)
+			int mnt_flags, const char *name, void *data)
 {
 	struct file_system_type *type;
 	struct user_namespace *user_ns;
@@ -2166,8 +2166,8 @@ int copy_mount_string(const void __user *data, char **where)
  * Therefore, if this magic number is present, it carries no information
  * and must be discarded.
  */
-long do_mount(char *dev_name, char *dir_name, char *type_page,
-		  unsigned long flags, void *data_page)
+long do_mount(const char *dev_name, const char *dir_name,
+		const char *type_page, unsigned long flags, void *data_page)
 {
 	struct path path;
 	int retval = 0;
@@ -2235,7 +2235,6 @@ dput_out:
 	path_put(&path);
 	return retval;
 }
-
 
 static void free_mnt_ns(struct mnt_namespace *ns)
 {
@@ -2365,7 +2364,7 @@ static struct mnt_namespace *dup_mnt_ns(struct mnt_namespace *mnt_ns,
 }
 
 struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
-		 struct user_namespace *user_ns, struct fs_struct *new_fs)
+		struct user_namespace *user_ns, struct fs_struct *new_fs)
 {
 	struct mnt_namespace *new_ns;
 
@@ -2743,7 +2742,7 @@ static int mntns_install(struct nsproxy *nsproxy, void *ns)
 	struct path root;
 
 	if (!ns_capable(mnt_ns->user_ns, CAP_SYS_ADMIN) ||
-		!nsown_capable(CAP_SYS_CHROOT))
+	    !nsown_capable(CAP_SYS_CHROOT))
 		return -EINVAL;
 
 	if (fs->users != 1)

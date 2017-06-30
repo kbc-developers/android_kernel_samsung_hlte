@@ -159,7 +159,7 @@ static int VibeOSKernelProcessData(void *data)
 	if (g_bstoprequested) {
 		VibeOSKernelLinuxStopTimer();
 
-#if defined(CONFIG_TACTILE_ASSIST) || defined(CONFIG_VIBRATOR_UPDATE)
+#ifdef CONFIG_TACTILE_ASSIST
 		// stop all actuator
 		for (i = 0; i < NUM_ACTUATORS; i++)
 		{

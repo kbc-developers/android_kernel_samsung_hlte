@@ -7,6 +7,13 @@
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ * Basic entry code, called from the kernel's undefined instruction trap.
+ *  r0  = faulted instruction
+ *  r2  = faulted PC+4
+ *  r9  = successful return
+ *  r10 = thread_info structure
+ *  lr  = failure return
  */
 #include <asm/thread_info.h>
 #include <asm/vfpmacros.h>
@@ -27,7 +34,6 @@ ENTRY(do_vfp)
 	add	r11, r4, #1		@ increment it
 	str	r11, [r10, #TI_PREEMPT]
 #endif
-	enable_irq
 	str	r2, [sp, #S_PC]		@ update regs->ARM_pc for Thumb 2 case
  	ldr	r4, .LCvfp
 	ldr	r11, [r10, #TI_CPU]	@ CPU number

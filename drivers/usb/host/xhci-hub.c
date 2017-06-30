@@ -1248,6 +1248,7 @@ int xhci_bus_suspend(struct usb_hcd *hcd)
 			if (xhci->quirks & XHCI_PORTSC_DELAY)
 				ndelay(100);
 		}
+
 	}
 	hcd->state = HC_STATE_SUSPENDED;
 	bus_state->next_statechange = jiffies + msecs_to_jiffies(10);
@@ -1329,6 +1330,7 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 			if (xhci->quirks & XHCI_PORTSC_DELAY)
 				ndelay(100);
 		}
+
 	}
 
 	(void) xhci_readl(xhci, &xhci->op_regs->command);

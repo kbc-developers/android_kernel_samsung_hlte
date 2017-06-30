@@ -37,11 +37,7 @@ static int gpio_usb_vbus_msm;
 
 #ifdef CONFIG_CHARGER_SMB1357
 struct delayed_work	smb1357_late_power_work;
-#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
-int smb1357_otg_control(bool ta_status, int enable)
-#else
 int smb1357_otg_control(int enable)
-#endif
 {
 	union power_supply_propval value;
 	int i, ret = 0;
@@ -66,17 +62,8 @@ int smb1357_otg_control(int enable)
 
 	if (enable == 1)
 		current_cable_type = POWER_SUPPLY_TYPE_OTG;
-#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
-	else if (enable == 2){
-		if(ta_status == false)
-			current_cable_type = POWER_SUPPLY_TYPE_OTG;
-		else if (ta_status == true)
-			current_cable_type = POWER_SUPPLY_TYPE_LAN_HUB;
-		}
-#else
 	else if (enable == 2)
 		current_cable_type = POWER_SUPPLY_TYPE_LAN_HUB;
-#endif
 	else
 		current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
 
@@ -113,17 +100,10 @@ static void smb1357_late_power(struct work_struct *work)
 	if (dwcm->ext_xceiv.id == DWC3_ID_GROUND) {
 		if (gpio_usb_vbus_msm > 0) {
 			if (gpio_get_value(gpio_usb_vbus_msm) == 0)
-#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
-				smb1357_otg_control(false, booster_enable);
-		} else {
-			smb1357_otg_control(false, booster_enable);
-		}
-#else
 				smb1357_otg_control(booster_enable);
 		} else {
 			smb1357_otg_control(booster_enable);
 		}
-#endif
 	}
 #endif
 }
@@ -424,9 +404,6 @@ static struct sec_cable support_cable_list[] = {
 	{ .cable_type = EXTCON_TA, },
 	{ .cable_type = EXTCON_AUDIODOCK, },
 	{ .cable_type = EXTCON_SMARTDOCK_TA, },
-#ifdef CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK
-	{ .cable_type = EXTCON_MULTIMEDIADOCK, },
-#endif
 #endif
 	{ .cable_type = EXTCON_SMARTDOCK_USB, },
 	{ .cable_type = EXTCON_JIG_USBON, },
@@ -492,9 +469,6 @@ static void sec_cable_event_worker(struct work_struct *work)
 			sec_otg_notify(HNOTIFY_AUDIODOCK_OFF);
 		break;
 	case EXTCON_SMARTDOCK_TA:
-#ifdef CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK
-	case EXTCON_MULTIMEDIADOCK:
-#endif
 		if (cable->cable_state)
 			sec_otg_notify(HNOTIFY_SMARTDOCK_ON);
 		else

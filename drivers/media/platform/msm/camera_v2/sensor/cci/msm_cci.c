@@ -43,6 +43,9 @@
 
 /* Max bytes that can be read per CCI read transaction */
 #define CCI_READ_MAX 12
+#define CCI_I2C_READ_MAX_RETRIES 3
+#define CCI_I2C_MAX_READ 8192
+#define CCI_I2C_MAX_WRITE 8192
 
 static struct v4l2_subdev *g_cci_subdev;
 
@@ -73,36 +76,6 @@ static void msm_cci_set_clk_param(struct cci_device *cci_dev)
 		clk_params->hw_trdhld << 4 | clk_params->hw_tsp,
 		cci_dev->base + CCI_I2C_M1_MISC_CTL_ADDR);
 	return;
-}
-
-static int32_t msm_cci_i2c_config_sync_timer(struct v4l2_subdev *sd,
-	struct msm_camera_cci_ctrl *c_ctrl)
-{
-	struct cci_device *cci_dev;
-	cci_dev = v4l2_get_subdevdata(sd);
-	msm_camera_io_w(c_ctrl->cci_info->cid, cci_dev->base +
-		CCI_SET_CID_SYNC_TIMER_0_ADDR + (c_ctrl->cci_info->cid * 0x4));
-	return 0;
-}
-
-static int32_t msm_cci_i2c_set_freq(struct v4l2_subdev *sd,
-	struct msm_camera_cci_ctrl *c_ctrl)
-{
-	struct cci_device *cci_dev;
-	uint32_t val;
-	cci_dev = v4l2_get_subdevdata(sd);
-	val = c_ctrl->cci_info->freq;
-	msm_camera_io_w(val, cci_dev->base + CCI_I2C_M0_SCL_CTL_ADDR +
-		c_ctrl->cci_info->cci_i2c_master*0x100);
-	msm_camera_io_w(val, cci_dev->base + CCI_I2C_M0_SDA_CTL_0_ADDR +
-		c_ctrl->cci_info->cci_i2c_master*0x100);
-	msm_camera_io_w(val, cci_dev->base + CCI_I2C_M0_SDA_CTL_1_ADDR +
-		c_ctrl->cci_info->cci_i2c_master*0x100);
-	msm_camera_io_w(val, cci_dev->base + CCI_I2C_M0_SDA_CTL_2_ADDR +
-		c_ctrl->cci_info->cci_i2c_master*0x100);
-	msm_camera_io_w(val, cci_dev->base + CCI_I2C_M0_MISC_CTL_ADDR +
-		c_ctrl->cci_info->cci_i2c_master*0x100);
-	return 0;
 }
 
 static void msm_cci_flush_queue(struct cci_device *cci_dev,
@@ -198,17 +171,46 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 	uint16_t cmd_size = i2c_msg->size;
 	struct msm_camera_i2c_reg_array *i2c_cmd = i2c_msg->reg_setting;
 	enum cci_i2c_master_t master = c_ctrl->cci_info->cci_i2c_master;
+
+	if (i2c_cmd == NULL) {
+		pr_err("%s:%d Failed line\n", __func__,
+			__LINE__);
+		return -EINVAL;
+	}
+
+	if ((!cmd_size) || (cmd_size > CCI_I2C_MAX_WRITE)) {
+		pr_err("%s:%d Failed line\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
 	CDBG("%s addr type %d data type %d\n", __func__,
 		i2c_msg->addr_type, i2c_msg->data_type);
 
-	/* assume total size within the max queue */
+	if (i2c_msg->addr_type >= MSM_CAMERA_I2C_ADDR_TYPE_MAX) {
+		pr_err("%s failed line %d\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+	if (i2c_msg->data_type >= MSM_CAMERA_I2C_DATA_TYPE_MAX) {
+		pr_err("%s failed line %d\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
+	reg_addr = i2c_cmd->reg_addr;
 	while (cmd_size) {
-		CDBG("%s cmd_size %d addr 0x%x data 0x%x", __func__,
+		CDBG("%s cmd_size %d addr 0x%x data 0x%x\n", __func__,
 			cmd_size, i2c_cmd->reg_addr, i2c_cmd->reg_data);
 		delay = i2c_cmd->delay;
 		data[i++] = CCI_I2C_WRITE_CMD;
-		if (i2c_cmd->reg_addr)
+
+		/* in case of multiple command
+		* MSM_CCI_I2C_WRITE : address is not continuous, so update
+		*			address for a new packet.
+		* MSM_CCI_I2C_WRITE_SEQ : address is continuous, need to keep
+		*			the incremented address for a
+		*			new packet */
+		if (c_ctrl->cmd == MSM_CCI_I2C_WRITE)
 			reg_addr = i2c_cmd->reg_addr;
+
 		/* either byte or word addr */
 		if (i2c_msg->addr_type == MSM_CAMERA_I2C_BYTE_ADDR)
 			data[i++] = reg_addr;
@@ -235,7 +237,10 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 					break;
 			}
 			i2c_cmd++;
-		} while (--cmd_size && !i2c_cmd->reg_addr && (i <= 10));
+			--cmd_size;
+		} while ((c_ctrl->cmd == MSM_CCI_I2C_WRITE_SEQ) &&
+				(cmd_size > 0) && (i <= 10));
+
 		data[0] |= ((i-1) << 4);
 		len = ((i-1)/4) + 1;
 		rc = msm_cci_validate_queue(cci_dev, len, master, queue);
@@ -326,6 +331,18 @@ static int32_t msm_cci_i2c_read(struct v4l2_subdev *sd,
 		goto ERROR;
 	}
 
+	if (c_ctrl->cci_info->retries > CCI_I2C_READ_MAX_RETRIES) {
+		pr_err("%s:%d More than max retries\n", __func__,
+			__LINE__);
+		goto ERROR;
+	}
+
+	if (read_cfg->data == NULL) {
+		pr_err("%s:%d Data ptr is NULL\n", __func__,
+			__LINE__);
+		goto ERROR;
+	}
+
 	CDBG("%s master %d, queue %d\n", __func__, master, queue);
 	CDBG("%s set param sid 0x%x retries %d id_map %d\n", __func__,
 		c_ctrl->cci_info->sid, c_ctrl->cci_info->retries,
@@ -342,6 +359,11 @@ static int32_t msm_cci_i2c_read(struct v4l2_subdev *sd,
 	val = CCI_I2C_LOCK_CMD;
 	rc = msm_cci_write_i2c_queue(cci_dev, val, master, queue);
 	if (rc < 0) {
+		CDBG("%s failed line %d\n", __func__, __LINE__);
+		goto ERROR;
+	}
+
+	if (read_cfg->addr_type >= MSM_CAMERA_I2C_ADDR_TYPE_MAX) {
 		CDBG("%s failed line %d\n", __func__, __LINE__);
 		goto ERROR;
 	}
@@ -459,9 +481,14 @@ static int32_t msm_cci_i2c_read_bytes(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
+	if (c_ctrl->cci_info->cci_i2c_master > MASTER_MAX) {
+		pr_err("%s:%d Invalid I2C master addr\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
 	master = c_ctrl->cci_info->cci_i2c_master;
 	read_cfg = &c_ctrl->cfg.cci_i2c_read_cfg;
-	if (!read_cfg->num_byte) {
+	if ((!read_cfg->num_byte) || (read_cfg->num_byte > CCI_I2C_MAX_READ)) {
 		pr_err("%s:%d read num bytes 0\n", __func__, __LINE__);
 		rc = -EINVAL;
 		goto ERROR;
@@ -499,6 +526,10 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 	enum cci_i2c_master_t master;
 	enum cci_i2c_queue_t queue = QUEUE_0;
 	cci_dev = v4l2_get_subdevdata(sd);
+	if (c_ctrl->cci_info->cci_i2c_master > MASTER_MAX) {
+		pr_err("%s:%d Invalid I2C master addr\n", __func__, __LINE__);
+		return -EINVAL;
+	}
 	master = c_ctrl->cci_info->cci_i2c_master;
 	CDBG("%s master %d, queue %d\n", __func__, master, queue);
 	CDBG("%s set param sid 0x%x retries %d id_map %d\n", __func__,
@@ -517,6 +548,11 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 	if (rc < 0) {
 		pr_err("%s:%d Initial validataion failed rc %d\n", __func__,
 			__LINE__, rc);
+		goto ERROR;
+	}
+	if (c_ctrl->cci_info->retries > CCI_I2C_READ_MAX_RETRIES) {
+		pr_err("%s:%d More than max retries\n", __func__,
+			__LINE__);
 		goto ERROR;
 	}
 
@@ -538,7 +574,11 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 		goto ERROR;
 	}
 
-	msm_cci_data_queue(cci_dev, c_ctrl, queue, is_burst);
+	rc = msm_cci_data_queue(cci_dev, c_ctrl, queue, is_burst);
+	if (rc < 0) {
+		CDBG("%s failed line %d\n", __func__, __LINE__);
+		goto ERROR;
+	}
 	val = CCI_I2C_UNLOCK_CMD;
 	CDBG("%s:%d CCI_I2C_UNLOCK_CMD\n", __func__, __LINE__);
 	rc = msm_cci_write_i2c_queue(cci_dev, val, master, queue);
@@ -746,18 +786,11 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	case MSM_CCI_RELEASE:
 		rc = msm_cci_release(sd);
 		break;
-	case MSM_CCI_SET_SID:
-		break;
-	case MSM_CCI_SET_FREQ:
-		rc = msm_cci_i2c_set_freq(sd, cci_ctrl);
-		break;
-	case MSM_CCI_SET_SYNC_CID:
-		rc = msm_cci_i2c_config_sync_timer(sd, cci_ctrl);
-		break;
 	case MSM_CCI_I2C_READ:
 		rc = msm_cci_i2c_read_bytes(sd, cci_ctrl);
 		break;
 	case MSM_CCI_I2C_WRITE:
+	case MSM_CCI_I2C_WRITE_SEQ:
 		rc = msm_cci_i2c_write(sd, cci_ctrl, 0);
         break;
 	case MSM_CCI_I2C_WRITE_BURST:

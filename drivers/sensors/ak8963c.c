@@ -32,8 +32,8 @@
 #include "ak8963c_reg.h"
 
 /* Rx buffer size. i.e ST,TMPS,H1X,H1Y,H1Z*/
-#define SENSOR_DATA_SIZE                8
-#define AK8963C_DEFAULT_DELAY           200000000LL
+#define SENSOR_DATA_SIZE		8
+#define AK8963C_DEFAULT_DELAY		200000000LL
 
 #define I2C_M_WR                        0 /* for i2c Write */
 #define I2c_M_RD                        1 /* for i2c Read */
@@ -81,7 +81,6 @@ struct ak8963c_p {
 	int irq;
 	int m_rst_n;
 	int m_sensor_int;
-	u64 ts_old;
 };
 
 static int ak8963c_i2c_read(struct i2c_client *client,
@@ -252,21 +251,12 @@ static int ak8963c_read_mag_xyz(struct ak8963c_p *data, struct ak8963c_v *mag)
 
 	ret = ak8963c_wait_for_data_ready(data);
 	if (ret) {
-		// If data is not ready to read, store previous data to avoid event gap
-		mag->x = data->magdata.x;
-		mag->y = data->magdata.y;
-		mag->z = data->magdata.z;
-		mutex_unlock(&data->lock);
-		return 0;
-	}
-
-	ret = ak8963c_i2c_read_block(data->client, AK8963C_REG_ST1,
-			temp, SENSOR_DATA_SIZE);
-	if (ret < 0) {
 		mutex_unlock(&data->lock);
 		return ret;
 	}
 
+	ret = ak8963c_i2c_read_block(data->client, AK8963C_REG_ST1,
+			temp, SENSOR_DATA_SIZE);
 	mutex_unlock(&data->lock);
 
 	mag->x = temp[1] | (temp[2] << 8);
@@ -280,62 +270,19 @@ static int ak8963c_read_mag_xyz(struct ak8963c_p *data, struct ak8963c_v *mag)
 
 static void ak8963c_work_func(struct work_struct *work)
 {
-	int ret;
 	struct ak8963c_v mag;
-	int time_hi, time_lo;
-	struct timespec time_spec;
-	u64 ts_new, ts_shift, ts;
-	unsigned long delay;
 	struct ak8963c_p *data = container_of((struct delayed_work *)work,
 			struct ak8963c_p, work);
+	unsigned long delay = nsecs_to_jiffies(atomic_read(&data->delay));
 
-	delay = atomic_read(&data->delay);
-	time_spec = ktime_to_timespec(alarm_get_elapsed_realtime());
-	ts_new = time_spec.tv_sec * 1000000000ULL + time_spec.tv_nsec;
-	ts_shift = delay >> 1;
-	ts = 0ULL;
-
-	ret = ak8963c_read_mag_xyz(data, &mag);
-	if (ret < 0)
-		return;
-
-	data->magdata = mag;
-
-	mag.x = (mag.x >= 0) ? (mag.x + 1) : (mag.x - 1);
-	mag.y = (mag.y >= 0) ? (mag.y + 1) : (mag.y - 1);
-	mag.z = (mag.z >= 0) ? (mag.z + 1) : (mag.z - 1);
-
-	if (data->ts_old != 0 && ((ts_new - data->ts_old) * 10 > delay * 18)) {
-		for (ts = data->ts_old + delay; ts < ts_new - ts_shift; ts += delay) {
-			time_hi = (int)((ts & TIME_HI_MASK) >> TIME_HI_SHIFT);
-			time_lo = (int)(ts & TIME_LO_MASK);
-			time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-			time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
-
-			input_report_rel(data->input, REL_X, mag.x);
-			input_report_rel(data->input, REL_Y, mag.y);
-			input_report_rel(data->input, REL_Z, mag.z);
-			input_report_rel(data->input, REL_RX, time_hi);
-			input_report_rel(data->input, REL_RY, time_lo);
-			input_sync(data->input);
-			data->ts_old = ts;
-		}
-	}
-
-	time_hi = (int)((ts_new & TIME_HI_MASK) >> TIME_HI_SHIFT);
-	time_lo = (int)(ts_new & TIME_LO_MASK);
-	time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-	time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
-
+	ak8963c_read_mag_xyz(data, &mag);
 	input_report_rel(data->input, REL_X, mag.x);
 	input_report_rel(data->input, REL_Y, mag.y);
 	input_report_rel(data->input, REL_Z, mag.z);
-	input_report_rel(data->input, REL_RX, time_hi);
-	input_report_rel(data->input, REL_RY, time_lo);
 	input_sync(data->input);
-	data->ts_old = ts_new;
+	data->magdata = mag;
 
-	schedule_delayed_work(&data->work, nsecs_to_jiffies(atomic_read(&data->delay)));
+	schedule_delayed_work(&data->work, delay);
 }
 
 static void ak8963c_set_enable(struct ak8963c_p *data, int enable)
@@ -344,7 +291,6 @@ static void ak8963c_set_enable(struct ak8963c_p *data, int enable)
 
 	if (enable) {
 		if (pre_enable == 0) {
-			data->ts_old = 0ULL;
 			ak8963c_ecs_set_mode(data, AK8963C_CNTL1_SNG_MEASURE);
 			schedule_delayed_work(&data->work,
 				nsecs_to_jiffies(atomic_read(&data->delay)));
@@ -458,7 +404,7 @@ retry:
 
 	/* wait for data ready */
 	while (ready_count < 10) {
-		usleep_range(20000, 21000);
+		msleep(20);
 		ret = ak8963c_i2c_read(data->client, AK8963C_REG_ST1, &reg);
 		if ((reg == 1) && (ret == 0))
 			break;
@@ -633,7 +579,7 @@ static ssize_t ak8963c_adc(struct device *dev,
 		goto exit;
 	}
 
-	usleep_range(20000, 21000);
+	msleep(20);
 
 retry_adc:
 	mutex_lock(&data->lock);
@@ -691,7 +637,7 @@ static ssize_t ak8963c_raw_data_read(struct device *dev,
 	if (atomic_read(&data->enable) == 1)
 		goto exit;
 
-	usleep_range(20000, 21000);
+	msleep(20);
 
 retry_rawdata:
 	mutex_lock(&data->lock);
@@ -876,8 +822,6 @@ static int ak8963c_input_init(struct ak8963c_p *data)
 	input_set_capability(dev, EV_REL, REL_X);
 	input_set_capability(dev, EV_REL, REL_Y);
 	input_set_capability(dev, EV_REL, REL_Z);
-	input_set_capability(dev, EV_REL, REL_RX);
-	input_set_capability(dev, EV_REL, REL_RY);
 	input_set_drvdata(dev, data);
 
 	ret = input_register_device(dev);

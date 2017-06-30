@@ -212,11 +212,6 @@ static int sii8240_muic_get_charging_type(void)
 	case CABLE_TYPE_SMARTDOCK_TA_MUIC:
 	case CABLE_TYPE_SMARTDOCK_USB_MUIC:
 		return -1;
-#if defined(CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK) && defined(CONFIG_MFD_MAX77888)
-	case CABLE_TYPE_MMDOCK_MUIC:
-		g_pdata->is_multimediadock = true;
-		break;
-#endif
 	default:
 		break;
 	}
@@ -256,26 +251,6 @@ static void sii8240_charger_mhl_cb(bool otg_enable, int charger)
 		pdata->charging_type = POWER_SUPPLY_TYPE_MHL_USB;
 	} else
 		pdata->charging_type = POWER_SUPPLY_TYPE_BATTERY;
-
-#ifdef CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK
-	pr_info("MMDock_code\n");
-	if (pdata->is_multimediadock == true) {
-		pr_info("MMDock platform variable was found true. Check otg value and update enum\n");
-#ifdef CONFIG_MFD_MAX77888
-		if (otg_enable && !sii8240_vbus_present()) {
-			otg_enable = false;
-			pdata->charging_type = POWER_SUPPLY_TYPE_BATTERY;
-		} else
-#endif
-		if (otg_enable == true || charger == 0x00) {
-			pr_info("MMDock_connected otg_enable = %d  charger = 0x%02x\n", otg_enable, charger);
-			return;
-		} else if (pdata->charging_type != POWER_SUPPLY_TYPE_BATTERY) {
-			pdata->charging_type = (charger == 0x03) ? POWER_SUPPLY_TYPE_MDOCK_USB :POWER_SUPPLY_TYPE_MDOCK_TA;
-			pr_info("sii8240 : %s MDOCK_TA with charger(0x%02x)\n", __func__, charger);
-		}
-	}
-#endif
 
 	if (otg_enable) {
 		if (!sii8240_vbus_present()) {

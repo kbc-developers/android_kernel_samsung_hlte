@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -83,7 +83,7 @@ static unsigned int threshold_client_limit = 30;
 int diag_max_reg = 600;
 int diag_threshold_reg = 750;
 
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_DISABLE_DIAG_ON_SHIP_BUILD)
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 static int enable_diag;
 #endif
 
@@ -308,10 +308,12 @@ static int diagchar_close(struct inode *inode, struct file *file)
 #ifdef CONFIG_DIAG_OVER_USB
 	/* If the SD logging process exits, change logging to USB mode */
 	if (driver->logging_process_id == current->tgid) {
+		mutex_lock(&driver->diagchar_mutex);
 		driver->logging_mode = USB_MODE;
+		diag_ws_reset();
+		mutex_unlock(&driver->diagchar_mutex);
 		diag_update_proc_vote(DIAG_PROC_MEMORY_DEVICE, VOTE_DOWN);
 		diagfwd_connect();
-		diag_ws_reset();
 #ifdef CONFIG_DIAGFWD_BRIDGE_CODE
 		diag_clear_hsic_tbl();
 		diagfwd_cancel_hsic(REOPEN_HSIC);
@@ -917,6 +919,7 @@ int diag_switch_logging(unsigned long ioarg)
 				pr_err("socket process, status: %d\n",
 					status);
 			}
+			driver->socket_process = NULL;
 		}
 	} else if (driver->logging_mode == SOCKET_MODE) {
 		driver->socket_process = current;
@@ -1299,9 +1302,15 @@ drop:
 					COPY_USER_SPACE_OR_EXIT(buf+ret,
 						*(data->buf_in_1),
 						data->write_ptr_1->length);
+					diag_ws_on_copy();
+					copy_data = 1;
 					data->in_busy_1 = 0;
 				}
 			}
+		}
+		if (!copy_data) {
+			diag_ws_on_copy();
+			copy_data = 1;
 		}
 #ifdef CONFIG_DIAG_SDIO_PIPE
 		/* copy 9K data over SDIO */
@@ -1466,6 +1475,7 @@ drop:
 exit:
 	mutex_unlock(&driver->diagchar_mutex);
 	if (copy_data) {
+		diag_ws_on_copy_complete();
 		/*
 		 * Flush any work that is currently pending on the data
 		 * channels. This will ensure that the next read is not
@@ -1474,7 +1484,6 @@ exit:
 		for (i = 0; i < NUM_SMD_DATA_CHANNELS; i++)
 			flush_workqueue(driver->smd_data[i].wq);
 		wake_up(&driver->smd_wait_q);
-		diag_ws_on_copy_complete();
 	}
 	return ret;
 }
@@ -2144,7 +2153,7 @@ void diagfwd_bridge_fn(int type)
 inline void diagfwd_bridge_fn(int type) { }
 #endif
 
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_DISABLE_DIAG_ON_SHIP_BUILD)
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 static int check_diagchar_enabled(char *str)
 {
 	get_option(&str, &enable_diag);
@@ -2162,7 +2171,7 @@ static int __init diagchar_init(void)
 	pr_debug("diagfwd initializing ..\n");
 	ret = 0;
 
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_DISABLE_DIAG_ON_SHIP_BUILD)
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 	if (!enable_diag) {
 		pr_info("diagchar_core isn't enabled.\n");
 		return -EPERM;

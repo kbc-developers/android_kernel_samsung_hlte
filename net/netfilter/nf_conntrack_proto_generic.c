@@ -38,6 +38,7 @@ static bool nf_generic_should_process(u8 proto)
 	}
 }
 
+
 static bool generic_pkt_to_tuple(const struct sk_buff *skb,
 				 unsigned int dataoff,
 				 struct nf_conntrack_tuple *tuple)

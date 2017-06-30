@@ -508,10 +508,6 @@ static int rfcomm_sock_accept(struct socket *sock, struct socket *newsock, int f
 			break;
 		}
 
-		release_sock(sk);
-		timeo = schedule_timeout(timeo);
-		lock_sock(sk);
-
 		if (sk->sk_state != BT_LISTEN) {
 			err = -EBADFD;
 			break;

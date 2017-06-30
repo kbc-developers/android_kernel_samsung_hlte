@@ -17,6 +17,18 @@ extern struct class *sec_class;
 extern int poweroff_charging;
 #endif
 
+/* DVFS feature : TOUCH BOOSTER */
+#define TSP_BOOSTER
+#ifdef TSP_BOOSTER
+#include <linux/cpufreq.h>
+
+#define DVFS_STAGE_DUAL		2
+#define DVFS_STAGE_SINGLE		1
+#define DVFS_STAGE_NONE		0
+#define TOUCH_BOOSTER_OFF_TIME	500
+#define TOUCH_BOOSTER_CHG_TIME	500
+#endif
+
 #include <linux/input.h>
 #include <linux/earlysuspend.h>
 #include <linux/mutex.h>
@@ -36,21 +48,6 @@ extern int poweroff_charging;
 #define CYPRESS_DETECTION_FLAG			0x1B
 #define TK_CMD_DUAL_DETECTION			0x01
 #define TK_BIT_DETECTION_CONFIRM		0xEE
-#elif defined(CONFIG_MACH_JS01LTEDCM)
-#define CYPRESS_SUPPORT_DUAL_INT_MODE
-#define CYPRESS_RECENT_BACK_REPORT_FW_VER	0x09
-#define TK_CMD_INTERRUPT_SET_REG		0x18
-#define CYPRESS_DETECTION_FLAG			0x1B
-#define TK_CMD_DUAL_DETECTION			0x01
-#define TK_BIT_DETECTION_CONFIRM		0xEE
-#elif defined(CONFIG_SEC_KLIMT_PROJECT)
-#define CYPRESS_SUPPORT_DUAL_INT_MODE
-#define CYPRESS_RECENT_BACK_REPORT_FW_VER	0x09
-#define TK_CMD_INTERRUPT_SET_REG		0x18
-#define CYPRESS_DETECTION_FLAG			0x1B
-#define TK_CMD_DUAL_DETECTION			0x01
-#define TK_BIT_DETECTION_CONFIRM		0xEE
-#define CRC_CHECK_DELAY
 #else
 #undef CYPRESS_SUPPORT_DUAL_INT_MODE
 #define CYPRESS_RECENT_BACK_REPORT_FW_VER	0xFF
@@ -185,8 +182,6 @@ extern int poweroff_charging;
 #define CYPRESS_65_IC_MASK	0x04
 
 #define NUM_OF_KEY		4
-
-#define TK_KEYPAD_ENABLE
 
 enum {
 	CORERIVER_TOUCHKEY,
@@ -323,6 +318,16 @@ struct cypress_touchkey_info {
 	bool enabled_1mm;
 #endif
 
+#ifdef TSP_BOOSTER
+	struct delayed_work	work_dvfs_off;
+	struct delayed_work	work_dvfs_chg;
+	struct mutex		dvfs_lock;
+	bool dvfs_lock_status;
+	int dvfs_old_stauts;
+	int dvfs_boost_mode;
+	int dvfs_freq;
+#endif
+
 #ifdef TK_INFORM_CHARGER
 	struct touchkey_callbacks callbacks;
 	bool charging_mode;
@@ -342,10 +347,6 @@ struct cypress_touchkey_info {
 	bool	support_fw_update;
 	bool	do_checksum;
 	struct wake_lock fw_wakelock;
-
-#ifdef TK_KEYPAD_ENABLE
-	atomic_t keypad_enable;
-#endif
 };
 
 #ifdef TK_INFORM_CHARGER

@@ -21,7 +21,6 @@
 #define SHORT_BATTERY_STANDARD	100
 #if defined(CONFIG_USB_SWITCH_FSA9485)
 extern int mhl_connection_state(void);
-extern void fsa9485_mmdock_vbus_check(bool vbus_status);
 #endif
 
 #if defined(CONFIG_EXTCON)
@@ -103,11 +102,6 @@ static struct battery_data_t samsung_battery_data[] = {
 		.RCOMP_charging = 0x70,
 		.temp_cohot = -375,
 		.temp_cocold = -3975,
-#elif defined(CONFIG_MACH_KS01EUR)
-		.RCOMP0 = 0x73,
-		.RCOMP_charging = 0x79,
-		.temp_cohot = -850,
-		.temp_cocold = -4200,
 #elif defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || \
 		defined(CONFIG_MACH_KS01LGT)
 		.RCOMP0 = 0x70,
@@ -1188,20 +1182,7 @@ static sec_bat_adc_table_data_t chg_temp_table[] = {
 #define TEMP_LOW_THRESHOLD_LPM		-50
 #define TEMP_LOW_RECOVERY_LPM		0
 #elif defined(CONFIG_SEC_KS01_PROJECT)
-#if defined(CONFIG_MACH_KS01EUR)
-#define TEMP_HIGH_THRESHOLD_EVENT   600
-#define TEMP_HIGH_RECOVERY_EVENT	460
-#define TEMP_LOW_THRESHOLD_EVENT	-50
-#define TEMP_LOW_RECOVERY_EVENT	0
-#define TEMP_HIGH_THRESHOLD_NORMAL	600
-#define TEMP_HIGH_RECOVERY_NORMAL	460
-#define TEMP_LOW_THRESHOLD_NORMAL	-50
-#define TEMP_LOW_RECOVERY_NORMAL	0
-#define TEMP_HIGH_THRESHOLD_LPM		600
-#define TEMP_HIGH_RECOVERY_LPM		460
-#define TEMP_LOW_THRESHOLD_LPM		-50
-#define TEMP_LOW_RECOVERY_LPM		0
-#elif defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01LGT)
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01LGT)
 #define TEMP_HIGH_THRESHOLD_EVENT	670
 #define TEMP_HIGH_RECOVERY_EVENT	420
 #define TEMP_LOW_THRESHOLD_EVENT	-45
@@ -1868,12 +1849,6 @@ void sec_bat_check_cable_result_callback(struct device *dev,
 int sec_bat_check_cable_callback(struct sec_battery_info *battery)
 {
 	union power_supply_propval value;
-
-#ifdef CONFIG_USB_SWITCH_FSA9485
-	bool ta_status;
-	ta_status = gpio_get_value_cansleep(battery->pdata->ta_irq_gpio) ? false : true;
-	fsa9485_mmdock_vbus_check(ta_status);
-#endif
 
 	if (battery->pdata->ta_irq_gpio == 0) {
 		pr_err("%s: ta_int_gpio is 0 or not assigned yet(cable_type(%d))\n",

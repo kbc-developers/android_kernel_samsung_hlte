@@ -392,7 +392,7 @@ scan:
 		}
 	}
 	offset = si->lowest_bit;
-	while (offset < scan_base) {
+	while (++offset < scan_base) {
 		if (!si->swap_map[offset]) {
 			spin_lock(&si->lock);
 			goto checks;
@@ -405,7 +405,6 @@ scan:
 			cond_resched();
 			latency_ration = LATENCY_LIMIT;
 		}
-		offset++;
 	}
 	spin_lock(&si->lock);
 
@@ -708,7 +707,7 @@ int swp_swapcount(swp_entry_t entry)
 		n *= (SWAP_CONT_MAX + 1);
 	} while (tmp_count & COUNT_CONTINUED);
 out:
-	spin_unlock(&p->lock);
+	spin_unlock(&swap_lock);
 	return count;
 }
 

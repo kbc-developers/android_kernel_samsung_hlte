@@ -996,16 +996,16 @@ int scfs_get_cluster_from_lower(struct file *file, struct scfs_cinfo clust_info)
 	loff_t pos = 0;
 	int ret;
 
-	ret = scfs_initialize_lower_file(dentry, &lower_file, O_RDONLY); 
-	if (ret) {
-		SCFS_PRINT_ERROR("err in get_lower_file %s\n", dentry->d_name.name);
-		return ret;
-	}
-
 	if (clust_info.size > sii->cluster_size) {
 		SCFS_PRINT_ERROR("f:%s clust_info.size out of bounds, size %d\n",
 			lower_file->f_path.dentry->d_name.name, clust_info.size);
 		return -EINVAL;
+	}
+
+	ret = scfs_initialize_lower_file(dentry, &lower_file, O_RDONLY); 
+	if (ret) {
+		SCFS_PRINT_ERROR("err in get_lower_file %s\n", dentry->d_name.name);
+		return ret;
 	}
 	pos = clust_info.offset;
 

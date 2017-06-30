@@ -2157,7 +2157,6 @@ int usb_new_device(struct usb_device *udev)
 #endif
 	call_battery_notify(udev, 1);
 #endif
-
 	if (udev->serial)
 		add_device_randomness(udev->serial, strlen(udev->serial));
 	if (udev->product)

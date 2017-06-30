@@ -1,15 +1,11 @@
 /*
- * Copyright (c) 2013-2014 TRUSTONIC LIMITED
- * All Rights Reserved.
+ * Common data types for use by the MobiCore Kernel API Driver
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * version 2 as published by the Free Software Foundation.
+ * <-- Copyright Giesecke & Devrient GmbH 2009 - 2012 -->
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #ifndef _MC_KAPI_COMMON_H
 #define _MC_KAPI_COMMON_H

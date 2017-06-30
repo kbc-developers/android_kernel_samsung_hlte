@@ -214,11 +214,6 @@ static int get_cmd_rsp_buffers(int handle_index,
 		return SDMX_STATUS_OUT_OF_MEM;
 	}
 
-	if (sdmx_qseecom_handles[handle_index] == NULL) {
-		pr_err("%s: sdmx_qseecom_handles[%d] is NULL\n", __func__, handle_index);
-		return SDMX_STATUS_GENERAL_FAILURE;
-	}
-
 	*cmd = sdmx_qseecom_handles[handle_index]->sbuf;
 	*rsp = sdmx_qseecom_handles[handle_index]->sbuf + *cmd_len;
 	return SDMX_SUCCESS;

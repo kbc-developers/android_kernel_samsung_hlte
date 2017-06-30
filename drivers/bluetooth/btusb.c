@@ -1075,9 +1075,6 @@ static int btusb_probe(struct usb_interface *intf,
 
 	hdev->owner = THIS_MODULE;
 
-	if (id->driver_info & BTUSB_INTEL_BOOT)
-		set_bit(HCI_QUIRK_RAW_DEVICE, &hdev->quirks);
-
 	/* Interface numbers are hardcoded in the specification */
 	data->isoc = usb_ifnum_to_if(data->udev, 1);
 

@@ -1052,7 +1052,7 @@ int smp_link_encrypt_cmplt(struct l2cap_conn *conn, u8 status, u8 encrypt)
 
 	/* Fall back to Pairing request if failed a Link Security request */
 	else if (hcon->sec_req  && (status || !encrypt))
-		smp_conn_security(hcon, hcon->pending_sec_level);
+		smp_conn_security(conn->hcon, hcon->pending_sec_level);
 
 	hci_conn_put(hcon);
 

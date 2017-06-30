@@ -246,15 +246,12 @@ static int msm_eeprom_match_id(struct msm_eeprom_ctrl_t *e_ctrl)
 	rc = msm_camera_spi_query_id(client, 0, &id[0], 2);
 	if (rc < 0)
 		return rc;
-	pr_info("%s: read 0x%x 0x%x, check 0:0x%x 0x%x 1:0x%x 0x%x\n", __func__,
-	id[0], id[1], client->spi_client->mfr_id0, client->spi_client->device_id0,
-	client->spi_client->mfr_id1, client->spi_client->device_id1);
-
-	if ((id[0] == client->spi_client->mfr_id0 && id[1] == client->spi_client->device_id0)
-	|| (id[0] == client->spi_client->mfr_id1 && id[1] == client->spi_client->device_id1))
-		return 0;
-
-	return -ENODEV;
+	pr_info("%s: read 0x%x 0x%x, check 0x%x 0x%x\n", __func__, id[0],
+	     id[1], client->spi_client->mfr_id, client->spi_client->device_id);
+	if (id[0] != client->spi_client->mfr_id
+		    || id[1] != client->spi_client->device_id)
+		return -ENODEV;
+	return 0;
 }
 /**
   * msm_eeprom_power_up() - power up eeprom if it's not on
@@ -543,15 +540,22 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 	struct msm_eeprom_cfg_data *cdata =
 		(struct msm_eeprom_cfg_data *)argp;
 	int rc = 0;
+	size_t length = 0;
 
 	CDBG("%s E\n", __func__);
 	switch (cdata->cfgtype) {
 	case CFG_EEPROM_GET_INFO:
     pr_info("%s E CFG_EEPROM_GET_INFO\n", __func__);
     cdata->is_supported = e_ctrl->is_supported;
+		length = strlen(e_ctrl->eboard_info->eeprom_name) + 1;
+		if (length > MAX_EEPROM_NAME) {
+			pr_err("%s:%d invalid eeprom_name length %d\n",
+					__func__,__LINE__, (int)length);
+			rc = -EINVAL;
+			break;
+		}
     memcpy(cdata->cfg.eeprom_name,
-    	e_ctrl->eboard_info->eeprom_name,
-    	sizeof(cdata->cfg.eeprom_name));
+		    e_ctrl->eboard_info->eeprom_name, length);
     break;
 	case CFG_EEPROM_GET_CAL_DATA:
 		pr_info("%s E CFG_EEPROM_GET_CAL_DATA\n", __func__);
@@ -847,22 +851,13 @@ static int msm_eeprom_spi_parse_of(struct msm_camera_spi_client *spic)
 		return rc;
 	}
 	spic->erase_size = tmp[0];
-
-	rc = of_property_read_u32_array(of, "qcom,eeprom-id0", tmp, 2);
+	rc = of_property_read_u32_array(of, "qcom,eeprom-id", tmp, 2);
 	if (rc < 0) {
-		pr_err("%s: Failed to get eeprom id 0\n", __func__);
+		pr_err("%s: Failed to get eeprom id\n", __func__);
 		return rc;
 	}
-	spic->mfr_id0 = tmp[0];
-	spic->device_id0 = tmp[1];
-
-	rc = of_property_read_u32_array(of, "qcom,eeprom-id1", tmp, 2);
-	if (rc < 0) {
-		pr_err("%s: Failed to get eeprom id 1\n", __func__);
-		return rc;
-	}
-	spic->mfr_id1 = tmp[0];
-	spic->device_id1 = tmp[1];
+	spic->mfr_id = tmp[0];
+	spic->device_id = tmp[1];
 
 	return 0;
 }

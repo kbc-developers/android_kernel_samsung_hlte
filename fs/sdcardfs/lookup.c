@@ -111,13 +111,8 @@ struct inode *sdcardfs_iget(struct super_block *sb, struct inode *lower_inode, u
 		return ERR_PTR(err);
 	}
 	/* if found a cached inode, then just return it */
-	if (!(inode->i_state & I_NEW)) {
-		/* There can only be one alias, as we don't permit hard links
-		 * This ensures we do not keep stale dentries that would later
-		 * cause confusion. */
-		d_prune_aliases(inode);
+	if (!(inode->i_state & I_NEW))
 		return inode;
-	}
 
 	/* initialize new inode */
 	info = SDCARDFS_I(inode);
@@ -241,6 +236,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	/* now start the actual lookup procedure */
 	lower_dir_dentry = lower_parent_path->dentry;
 	lower_dir_mnt = lower_parent_path->mnt;
+
 	/* Use vfs_path_lookup to check if the dentry exists or not */
 	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name, 0,
 				&lower_nd.path);

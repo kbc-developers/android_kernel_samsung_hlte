@@ -78,7 +78,6 @@ struct cm3323_p {
 #ifdef CONFIG_SEC_RUBENS_PROJECT
 	struct regulator *vdd_2p85;
 #endif
-	u64 timestamp;
 };
 
 #ifdef CONFIG_SEC_RUBENS_PROJECT
@@ -107,7 +106,7 @@ static void sensor_power_on_vdd(struct cm3323_p *info, int onoff)
 				pr_err("%s: error vdd_2p85 disabling regulator\n",__func__);
 		}
 	}
-	usleep_range(30000, 31000);
+	msleep(30);
 	return;
 }
 #endif
@@ -185,18 +184,9 @@ static void cm3323_light_disable(struct cm3323_p *data)
 
 static void cm3323_work_func_light(struct work_struct *work)
 {
-	struct timespec ts;
-	int time_hi, time_lo;
 	struct cm3323_p *data = container_of((struct delayed_work *)work,
 			struct cm3323_p, work);
 	unsigned long delay = nsecs_to_jiffies(atomic_read(&data->delay));
-
-	ts = ktime_to_timespec(alarm_get_elapsed_realtime());
-	data->timestamp = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-	time_lo = (int)(data->timestamp & TIME_LO_MASK);
-	time_hi = (int)((data->timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
-	time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-	time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
 
 	cm3323_i2c_read_word(data, REG_RED, &data->color[0]);
 	cm3323_i2c_read_word(data, REG_GREEN, &data->color[1]);
@@ -207,8 +197,6 @@ static void cm3323_work_func_light(struct work_struct *work)
 	input_report_rel(data->input, REL_GREEN, data->color[1] + 1);
 	input_report_rel(data->input, REL_BLUE, data->color[2] + 1);
 	input_report_rel(data->input, REL_WHITE, data->color[3] + 1);
-	input_report_rel(data->input, REL_X, time_hi);
-	input_report_rel(data->input, REL_Y, time_lo);
 	input_sync(data->input);
 
 	if (((int64_t)atomic_read(&data->delay) * (int64_t)data->time_count)
@@ -383,8 +371,6 @@ static int cm3323_input_init(struct cm3323_p *data)
 	input_set_capability(dev, EV_REL, REL_GREEN);
 	input_set_capability(dev, EV_REL, REL_BLUE);
 	input_set_capability(dev, EV_REL, REL_WHITE);
-	input_set_capability(dev, EV_REL, REL_X);
-	input_set_capability(dev, EV_REL, REL_Y);
 	input_set_drvdata(dev, data);
 
 	ret = input_register_device(dev);

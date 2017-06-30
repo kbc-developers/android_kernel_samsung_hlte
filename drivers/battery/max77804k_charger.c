@@ -662,17 +662,10 @@ static void reduce_input_current(struct max77804k_charger_data *charger, int cur
 static int max77804k_get_vbus_state(struct max77804k_charger_data *charger)
 {
 	u8 reg_data;
-	union power_supply_propval value;
 
 	max77804k_read_reg(charger->max77804k->i2c,
 		MAX77804K_CHG_REG_CHG_DTLS_00, &reg_data);
-
-	psy_do_property("battery", get, POWER_SUPPLY_PROP_ONLINE,
-			value);
-
-	if (value.intval == POWER_SUPPLY_TYPE_WIRELESS || \
-			(charger->pdata->use_wireless_to_pogo && \
-			 value.intval == POWER_SUPPLY_TYPE_POGODOCK))
+	if (charger->cable_type == POWER_SUPPLY_TYPE_WIRELESS)
 		reg_data = ((reg_data & MAX77804K_WCIN_DTLS) >>
 			MAX77804K_WCIN_DTLS_SHIFT);
 	else
@@ -1712,8 +1705,6 @@ static int sec_charger_parse_dt(struct max77804k_charger_data *charger)
 				pdata->bat_irq_gpio = ret;
 #endif
 			}
-			pdata->use_wireless_to_pogo = of_property_read_bool(np,
-					"battery,use_wireless_to_pogo");
 		}
 	}
 

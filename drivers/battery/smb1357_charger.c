@@ -1925,9 +1925,6 @@ bool smb1357_hal_chg_get_property(struct i2c_client *client,
 	}
 	return true;
 }
-#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
-extern bool lanhub_otg_connected;
-#endif
 
 bool smb1357_hal_chg_set_property(struct i2c_client *client,
 			      enum power_supply_property psp,
@@ -1955,17 +1952,6 @@ bool smb1357_hal_chg_set_property(struct i2c_client *client,
 			smb1357_charger_otg_control(client);
 		}
 		else if (charger->charging_current > 0) {
-#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
-			if(lanhub_otg_connected)
-			{
-				/* disable otg */
-				if (smb1357data->revision < CS21_REVISION) {
-					smb1357_enable_otg(client, false);
-				}
-				smb1357_enable_otg(client, false);
-				msleep(100);
-			}
-#endif
 			smb1357_charger_function_control(client);
 		}
 		else {

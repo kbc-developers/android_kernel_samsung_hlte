@@ -81,7 +81,6 @@ struct bmg160_p {
 	int gyro_dps;
 	int gyro_int;
 	int gyro_drdy;
-	u64 ts_old;
 };
 
 static int bmg160_open_calibration(struct bmg160_p *);
@@ -289,7 +288,7 @@ static int bmg160_set_bw(struct bmg160_p *data, unsigned char bandwidth)
 	temp = BMG160_SET_BITSLICE(temp, BMG160_BW_ADDR, bandwidth);
 	ret += bmg160_i2c_write(data->client, BMG160_BW_ADDR__REG, temp);
 
-	pr_info("[SENSOR]: %s - bandwidth = %u, ret = %d\n", __func__, bandwidth, ret);
+	pr_info("[SENSOR]: %s - change bandwidth %u\n", __func__, bandwidth);
 	return ret;
 }
 
@@ -377,7 +376,6 @@ static int bmg160_set_mode(struct bmg160_p *data, unsigned char mode)
 		break;
 	}
 
-	pr_info("[SENSOR]: %s - mode = %u, ret = %d\n", __func__, mode, ret);
 	return ret;
 }
 
@@ -445,65 +443,21 @@ static void bmg160_work_func(struct work_struct *work)
 {
 	int ret;
 	struct bmg160_v gyro;
-	int time_hi, time_lo;
-	struct timespec time_spec;
-	u64 ts_new, ts_shift, ts;
-	unsigned long delay;
 	struct bmg160_p *data = container_of(work, struct bmg160_p, work);
-
-	delay = ktime_to_ns(data->poll_delay);
-	time_spec = ktime_to_timespec(alarm_get_elapsed_realtime());
-	ts_new = time_spec.tv_sec * 1000000000ULL + time_spec.tv_nsec;
-	ts_shift = delay >> 1;
-	ts = 0ULL;
 
 	ret = bmg160_read_gyro_xyz(data, &gyro);
 	if (ret < 0)
 		return;
 
-	gyro.x = gyro.x - data->caldata.x;
-	gyro.y = gyro.y - data->caldata.y;
-	gyro.z = gyro.z - data->caldata.z;
-	data->gyrodata = gyro;
-
-	gyro.x = (gyro.x >= 0) ? (gyro.x + 1) : (gyro.x - 1);
-	gyro.y = (gyro.y >= 0) ? (gyro.y + 1) : (gyro.y - 1);
-	gyro.z = (gyro.z >= 0) ? (gyro.z + 1) : (gyro.z - 1);
-
-	if (data->ts_old != 0 && ((ts_new - data->ts_old) * 10 > delay * 18)) {
-		for (ts = data->ts_old + delay; ts < ts_new - ts_shift; ts += delay) {
-			time_hi = (int)((ts & TIME_HI_MASK) >> TIME_HI_SHIFT);
-			time_lo = (int)(ts & TIME_LO_MASK);
-			time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-			time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
-
-			input_report_rel(data->input, REL_RX, gyro.x);
-			input_report_rel(data->input, REL_RY, gyro.y);
-			input_report_rel(data->input, REL_RZ, gyro.z);
-			input_report_rel(data->input, REL_X, time_hi);
-			input_report_rel(data->input, REL_Y, time_lo);
-			input_sync(data->input);
-			data->ts_old = ts;
-		}
-	}
-
-	time_hi = (int)((ts_new & TIME_HI_MASK) >> TIME_HI_SHIFT);
-	time_lo = (int)(ts_new & TIME_LO_MASK);
-	time_hi = (time_hi >= 0) ? (time_hi + 1) : (time_hi - 1);
-	time_lo = (time_lo >= 0) ? (time_lo + 1) : (time_lo - 1);
-
-	input_report_rel(data->input, REL_RX, gyro.x);
-	input_report_rel(data->input, REL_RY, gyro.y);
-	input_report_rel(data->input, REL_RZ, gyro.z);
-	input_report_rel(data->input, REL_X, time_hi);
-	input_report_rel(data->input, REL_Y, time_lo);
+	input_report_rel(data->input, REL_RX, gyro.x - data->caldata.x);
+	input_report_rel(data->input, REL_RY, gyro.y - data->caldata.y);
+	input_report_rel(data->input, REL_RZ, gyro.z - data->caldata.z);
 	input_sync(data->input);
-	data->ts_old = ts_new;
+	data->gyrodata = gyro;
 }
 
 static void bmg160_set_enable(struct bmg160_p *data, int enable)
 {
-	data->ts_old = 0ULL;
 	if (enable == ON) {
 		hrtimer_start(&data->gyro_timer, data->poll_delay,
 		      HRTIMER_MODE_REL);
@@ -541,7 +495,6 @@ static ssize_t bmg160_enable_store(struct device *dev,
 		if (pre_enable == OFF) {
 			bmg160_open_calibration(data);
 			bmg160_set_mode(data, BMG160_MODE_NORMAL);
-			usleep_range(30000, 31000);
 			atomic_set(&data->enable, ON);
 			bmg160_set_enable(data, ON);
 		}
@@ -763,7 +716,7 @@ static ssize_t bmg160_calibration_store(struct device *dev,
 	else
 		bmg160_set_mode(data, BMG160_MODE_NORMAL);
 
-	usleep_range(100000, 101000);
+	msleep(100);
 
 	if (dEnable == 1)
 		bmg160_get_caldata(data);
@@ -787,7 +740,7 @@ static ssize_t bmg160_raw_data_show(struct device *dev,
 
 	if (atomic_read(&data->enable) == OFF) {
 		bmg160_set_mode(data, BMG160_MODE_NORMAL);
-		usleep_range(30000, 31000);
+		msleep(30);
 		bmg160_read_gyro_xyz(data, &data->gyrodata);
 		bmg160_set_mode(data, BMG160_MODE_SUSPEND);
 	}
@@ -809,7 +762,7 @@ static ssize_t bmg160_get_temp(struct device *dev,
 	if (atomic_read(&data->enable) == OFF)
 		bmg160_set_mode(data, BMG160_MODE_NORMAL);
 
-	usleep_range(100000, 101000);
+	msleep(100);
 
 	bmg160_i2c_read(data->client, BMG160_TEMP_ADDR, &tmp);
 	temperature = 24 + ((s8)tmp / 2);
@@ -897,7 +850,7 @@ static int bmg160_selftest_show(struct device *dev,
 	else
 		bmg160_set_mode(data, BMG160_MODE_NORMAL);
 
-	usleep_range(100000, 101000);
+	msleep(100);
 	bist = bmg160_selftest(data);
 	if (bist == 0)
 		selftest |= 1;
@@ -905,7 +858,7 @@ static int bmg160_selftest_show(struct device *dev,
 	data->gyro_dps = BMG160_RANGE_2000DPS;
 	bmg160_set_range(data, data->gyro_dps);
 
-	usleep_range(100000, 101000);
+	msleep(100);
 	memset(sum, 0, sizeof(int) * 3);
 	for (cnt = 0; cnt < SELFTEST_DATA_AMOUNT; cnt++) {
 		bmg160_read_gyro_xyz(data, &avg);
@@ -1023,8 +976,6 @@ static int bmg160_input_init(struct bmg160_p *data)
 	input_set_capability(dev, EV_REL, REL_RX);
 	input_set_capability(dev, EV_REL, REL_RY);
 	input_set_capability(dev, EV_REL, REL_RZ);
-	input_set_capability(dev, EV_REL, REL_X); /* time_hi */
-	input_set_capability(dev, EV_REL, REL_Y); /* time_lo */
 
 	input_set_drvdata(dev, data);
 

@@ -86,16 +86,13 @@ static inline int _scfs_readpage(struct file *file, struct page *page, int pref_
 #if MAX_BUFFER_CACHE
 	/* search buffer_cache first in case the cluster is left cached */
 	if (pref_index >= 0 &&
-		sbi->buffer_cache[pref_index].ino == sii->vfs_inode.i_ino &&
-		sbi->buffer_cache[pref_index].clust_num ==
+		sbi->buffer_cache[pref_index].inode_number == sii->vfs_inode.i_ino &&
+		sbi->buffer_cache[pref_index].cluster_number ==
 			PAGE_TO_CLUSTER_INDEX(page, sii) &&
 		atomic_read(&sbi->buffer_cache[pref_index].is_used) != 1) {
 		spin_lock(&sbi->buffer_cache_lock);
 		/* this pref_index is used for another page */
-		if (sbi->buffer_cache[pref_index].ino != sii->vfs_inode.i_ino ||
-				sbi->buffer_cache[pref_index].clust_num !=
-				PAGE_TO_CLUSTER_INDEX(page, sii) ||
-				atomic_read(&sbi->buffer_cache[pref_index].is_used) == 1) {
+		if (atomic_read(&sbi->buffer_cache[pref_index].is_used) == 1) {
 			spin_unlock(&sbi->buffer_cache_lock);
 			sbi->buffer_cache_reclaimed_before_used_count++;
 			goto pick_slot;
@@ -125,15 +122,12 @@ static inline int _scfs_readpage(struct file *file, struct page *page, int pref_
 
 	/* search buffer_cache first in case the cluster is left cached */
 	for (i = 0; i < MAX_BUFFER_CACHE; i++) {
-		if (sbi->buffer_cache[i].ino == sii->vfs_inode.i_ino &&
-			sbi->buffer_cache[i].clust_num ==
+		if (sbi->buffer_cache[i].inode_number == sii->vfs_inode.i_ino &&
+			sbi->buffer_cache[i].cluster_number ==
 				PAGE_TO_CLUSTER_INDEX(page, sii) &&
 			atomic_read(&sbi->buffer_cache[i].is_used) != 1) {
 			spin_lock(&sbi->buffer_cache_lock);
-			if (sbi->buffer_cache[i].ino == sii->vfs_inode.i_ino &&
-					sbi->buffer_cache[i].clust_num ==
-					PAGE_TO_CLUSTER_INDEX(page, sii) &&
-					atomic_read(&sbi->buffer_cache[i].is_used) == 1) {
+			if (atomic_read(&sbi->buffer_cache[i].is_used) == 1) {
 				spin_unlock(&sbi->buffer_cache_lock);
 				goto pick_slot;
 			}
@@ -177,8 +171,8 @@ pick_slot:
 		spin_unlock(&sbi->buffer_cache_lock);
 		buffer.c_page = sbi->buffer_cache[allocated_index].c_page;
 		buffer.u_page = sbi->buffer_cache[allocated_index].u_page;
-		sbi->buffer_cache[allocated_index].ino = sii->vfs_inode.i_ino;
-		sbi->buffer_cache[allocated_index].clust_num =
+		sbi->buffer_cache[allocated_index].inode_number = sii->vfs_inode.i_ino;
+		sbi->buffer_cache[allocated_index].cluster_number =
 			PAGE_TO_CLUSTER_INDEX(page, sii);
 		alloc_membuffer = 0;
 
@@ -186,32 +180,32 @@ pick_slot:
 	} 
 
 pick_slot_full:
-	for (i = 0; i < MAX_BUFFER_CACHE; i++) {
-		if (atomic_read(&sbi->buffer_cache[i].is_used) != 1) {
-			spin_lock(&sbi->buffer_cache_lock);
-			/* this index is used for another page */
-			if (atomic_read(&sbi->buffer_cache[i].is_used) == 1) {
+		for (i = 0; i < MAX_BUFFER_CACHE; i++) {
+			if (atomic_read(&sbi->buffer_cache[i].is_used) != 1) {
+				spin_lock(&sbi->buffer_cache_lock);
+				/* this index is used for another page */
+				if (atomic_read(&sbi->buffer_cache[i].is_used) == 1) {
+					spin_unlock(&sbi->buffer_cache_lock);
+					continue;
+				}
+
+				atomic_set(&sbi->buffer_cache[i].is_used, 1);
+				sbi->read_buffer_index = i + 1;
+
+				if (sbi->read_buffer_index >= MAX_BUFFER_CACHE)
+					sbi->read_buffer_index = 0;
+
 				spin_unlock(&sbi->buffer_cache_lock);
-				continue;
+				buffer.c_page = sbi->buffer_cache[i].c_page;
+				buffer.u_page = sbi->buffer_cache[i].u_page;
+				sbi->buffer_cache[i].inode_number = sii->vfs_inode.i_ino;
+				sbi->buffer_cache[i].cluster_number =
+					PAGE_TO_CLUSTER_INDEX(page, sii);
+				allocated_index = i;
+				alloc_membuffer = 0;
+				break;
 			}
-
-			atomic_set(&sbi->buffer_cache[i].is_used, 1);
-			sbi->read_buffer_index = i + 1;
-
-			if (sbi->read_buffer_index >= MAX_BUFFER_CACHE)
-				sbi->read_buffer_index = 0;
-
-			spin_unlock(&sbi->buffer_cache_lock);
-			buffer.c_page = sbi->buffer_cache[i].c_page;
-			buffer.u_page = sbi->buffer_cache[i].u_page;
-			sbi->buffer_cache[i].ino = sii->vfs_inode.i_ino;
-			sbi->buffer_cache[i].clust_num =
-				PAGE_TO_CLUSTER_INDEX(page, sii);
-			allocated_index = i;
-			alloc_membuffer = 0;
-			break;
 		}
-	}
 #endif
 
 real_io:
@@ -308,8 +302,8 @@ real_io:
 		atomic_set(&sbi->buffer_cache[allocated_index].is_used, 0);
 	} else if (alloc_membuffer != 1) {
 		spin_lock(&sbi->buffer_cache_lock);
-		sbi->buffer_cache[allocated_index].ino = -1;
-		sbi->buffer_cache[allocated_index].clust_num = -1;
+		sbi->buffer_cache[allocated_index].inode_number = -1;
+		sbi->buffer_cache[allocated_index].cluster_number = -1;
 		sbi->buffer_cache[allocated_index].is_compressed = -1;
 		atomic_set(&sbi->buffer_cache[allocated_index].is_used, -1);
 		spin_unlock(&sbi->buffer_cache_lock);
@@ -759,7 +753,7 @@ static int scfs_write_begin(struct file *file, struct address_space *mapping,
 		
 	*pagep = page;
 	if (pos != i_size_read(&sii->vfs_inode)) {
-		SCFS_PRINT("File %s RANDOM write access! pos = %lld, i_size = %lld\n",
+		SCFS_PRINT_ERROR("File %s RANDOM write access! pos = %lld, i_size = %lld\n",
 			file->f_path.dentry->d_name.name,pos,i_size_read(&sii->vfs_inode));
 		ret = -EINVAL;
 		goto out;

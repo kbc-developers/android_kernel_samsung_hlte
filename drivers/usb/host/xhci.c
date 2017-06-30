@@ -803,7 +803,7 @@ static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 	}
 }
 #else
-static inline void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
+static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 {
 }
 #endif /* CONFIG_PCI */

@@ -200,8 +200,8 @@ enum scfs_mode {
 struct read_buffer_cache {
 	struct page *u_page;
 	struct page *c_page;
-	int ino;
-	int clust_num;
+	int inode_number;
+	int cluster_number;
 	int is_compressed;
 	atomic_t is_used;
 };

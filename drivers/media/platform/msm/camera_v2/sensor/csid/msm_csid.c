@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -51,9 +51,9 @@ static int msm_csid_cid_lut(
 		if (csid_lut_params->vc_cfg[i]->cid >=
 			csid_lut_params->num_cid ||
 			csid_lut_params->vc_cfg[i]->cid < 0) {
-			pr_err("%s: cid outside range %d\n",
-				__func__, csid_lut_params->vc_cfg[i]->cid);
-			return -EINVAL;
+				pr_err("%s: cid outside range %d\n",
+					__func__, csid_lut_params->vc_cfg[i]->cid);
+				return -EINVAL;
 		}
 		CDBG("%s lut params num_cid = %d, cid = %d, dt = %x, df = %d\n",
 			__func__,
@@ -409,6 +409,13 @@ static long msm_csid_cmd(struct csid_device *csid_dev, void *arg)
 			rc = -EFAULT;
 			break;
 		}
+		if (csid_params.lut_params.num_cid < 1 ||
+			csid_params.lut_params.num_cid > MAX_CID) {
+			pr_err("%s: %d num_cid outside range\n",
+				__func__, __LINE__);
+			rc = -EINVAL;
+			break;
+		}
 		for (i = 0; i < csid_params.lut_params.num_cid; i++) {
 			vc_cfg = kzalloc(csid_params.lut_params.num_cid *
 				sizeof(struct msm_camera_csid_vc_cfg),
@@ -432,6 +439,10 @@ static long msm_csid_cmd(struct csid_device *csid_dev, void *arg)
 				break;
 			}
 			csid_params.lut_params.vc_cfg[i] = vc_cfg;
+		}
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			break;
 		}
 		rc = msm_csid_config(csid_dev, &csid_params);
 		for (i--; i >= 0; i--)

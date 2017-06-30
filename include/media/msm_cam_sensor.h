@@ -12,6 +12,8 @@
 #define I2C_SEQ_REG_DATA_MAX      20
 #define MAX_CID                   16
 
+#define I2C_USER_REG_DATA_MAX 1024
+
 #define MSM_SENSOR_MCLK_8HZ   8000000
 #define MSM_SENSOR_MCLK_16HZ  16000000
 #define MSM_SENSOR_MCLK_24HZ  24000000
@@ -40,15 +42,20 @@
 #define MAX_ACTUATOR_REGION 5
 #define MAX_ACTUATOR_INIT_SET 12
 #define MAX_ACTUATOR_REG_TBL_SIZE 8
+#define MAX_ACTUATOR_AF_TOTAL_STEPS 1024
 
 #define MOVE_NEAR 0
 #define MOVE_FAR  1
+
+#define MSM_ACTUATOR_MOVE_SIGNED_FAR -1
+#define MSM_ACTUATOR_MOVE_SIGNED_NEAR  1
 
 #define MAX_EEPROM_NAME 32
 
 #define MAX_EEPROM_NAME 32
 
 #define MAX_NUMBER_OF_STEPS 47
+#define MAX_POWER_CONFIG 12
 
 //************************************* Native functionalities for YUV sensor added by jai.prakash
 #define EXT_CAM_EV			1
@@ -176,22 +183,6 @@ enum msm_sensor_clk_type_t {
 };
 
 enum msm_sensor_power_seq_gpio_t {
-#if defined(CONFIG_MSMB_CAMERA_S)
-	SENSOR_GPIO_RESET,
-	SENSOR_GPIO_STANDBY,
-	SENSOR_GPIO_EXT_VANA_POWER,
-	SENSOR_GPIO_EXT_VIO_POWER,
-	SENSOR_GPIO_COMP,
-	SENSOR_GPIO_COMPRSTN,
-	SENSOR_GPIO_TORCH_EN,
-	SENSOR_GPIO_FLASH_EN,
-	SENSOR_GPIO_VT_RESET,
-	SENSOR_GPIO_VT_VANA,
-	SENSOR_GPIO_VT_STANDBY,
-	SENSOR_GPIO_VT_VIO,
-	SENSOR_GPIO_VT_VDIG,
-	SENSOR_GPIO_MAX,
-#else
 	SENSOR_GPIO_RESET,
 	SENSOR_GPIO_STANDBY,
 	SENSOR_GPIO_VT_RESET,
@@ -201,7 +192,6 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_EXT_VCORE_POWER,
 	SENSOR_GPIO_EXT_CAMIO_EN,
 	SENSOR_GPIO_MAX,
-#endif
 };
 
 enum msm_camera_vreg_name_t {
@@ -209,14 +199,6 @@ enum msm_camera_vreg_name_t {
 	CAM_VIO,
 	CAM_VAF,
 	CAM_VANA,
-#if defined(CONFIG_CAMERA_SEPARATE_VT_REGULATOR)
-	VT_CAM_VDIG,
-	VT_CAM_VANA,
-#endif
-#if defined(CONFIG_MSMB_CAMERA_S)
-	CAM_COMP_MIPI_1P0,
-	CAM_COMP_1P8,
-#endif
 	CAM_VREG_MAX,
 };
 
@@ -249,34 +231,7 @@ enum sensor_sub_module_t {
 	SUB_MODULE_CSIPHY_3D,
 	SUB_MODULE_CSID,
 	SUB_MODULE_CSID_3D,
-#if defined(CONFIG_MSMB_CAMERA_S)
-	SUB_MODULE_COMPANION,
-#endif
 	SUB_MODULE_MAX,
-};
-
-enum companion_cfg_type_t {
-	COMPANION_CMD_INIT,
-	COMPANION_CMD_SET_CAL_TBL,
-	COMPANION_CMD_READ_CAL_TBL,
-	COMPANION_CMD_LOAD_FIRMWARE_STEP_A,
-	COMPANION_CMD_LOAD_FIRMWARE_STEP_B,
-	COMPANION_CMD_LOAD_FIRMWARE_STEP_C,
-	COMPANION_CMD_LOAD_MASTER,
-	COMPANION_CMD_FW_BINARY_SET,
-	COMPANION_CMD_CAL_DATA_WRITE,
-	COMPANION_CMD_GET_CRC,
-	COMPANION_CMD_STREAM_ON,
-	COMPANION_CMD_SET_MODE,
-	COMPANION_CMD_GET_STATS2,
-	COMPANION_CMD_AEC_UPDATE,
-	COMPANION_CMD_AWB_UPDATE,
-	COMPANION_CMD_AF_UPDATE,
-	COMPANION_CMD_GET_INFO,
-	COMPANION_CMD_GET_REV,
-	COMPANION_CMD_RELEASE,
-	COMPANION_CMD_DUMP_REGISTER,
-	COMPANION_CMD_I2C_READ,
 };
 
 enum csid_cfg_type_t {
@@ -340,9 +295,6 @@ struct msm_sensor_info_t {
 	char     sensor_name[MAX_SENSOR_NAME];
 	int32_t  session_id;
 	int32_t  subdev_id[SUB_MODULE_MAX];
-#if defined(CONFIG_MSMB_CAMERA_S)
-	int32_t  subdev_intf[SUB_MODULE_MAX];
-#endif
 	uint8_t  is_mount_angle_valid;
 	uint32_t sensor_mount_angle;
 };
@@ -352,24 +304,17 @@ struct msm_camera_sensor_slave_info {
 	enum msm_sensor_camera_id_t camera_id;
 	uint16_t slave_addr;
 	enum msm_camera_i2c_reg_addr_type addr_type;
-#if !defined(CONFIG_MSMB_CAMERA_S)
 	enum msm_camera_i2c_data_type data_type;
-#endif
 	struct msm_sensor_id_info_t sensor_id_info;
 	struct msm_sensor_power_setting_array power_setting_array;
 	uint8_t is_probe_succeed;
-	char subdev_name[32];
+    char subdev_name[32];
 	struct msm_sensor_info_t sensor_info;
 };
 
 struct msm_camera_i2c_reg_array {
 	uint16_t reg_addr;
 	uint16_t reg_data;
-#if defined(CONFIG_MSMB_CAMERA_S)
-#ifndef BYPASS_COMPANION
-	uint8_t data_type;
-#endif
-#endif
 	uint32_t delay;
 };
 
@@ -494,41 +439,6 @@ struct csiphy_cfg_data {
 	} cfg;
 };
 
-struct companion_read_cal_data {
-	uint8_t *cal_data;
-	uint32_t size;
-	uint32_t offset;
-};
-
-struct companion_crc_check_param {
-	uint32_t addr;
-	uint32_t count;
-	uint32_t *CRC;
-};
-
-struct companion_fw_binary_param {
-	uint8_t * version;
-	uint8_t * buffer;
-	uint32_t size;
-};
-
-struct companion_cfg_data {
-	enum companion_cfg_type_t cfgtype;
-	union {
-		void *setting;
-		uint16_t stream_on;
-		uint8_t *stats2;
-		uint8_t *dump_buf;
-		uint16_t *read_id;
-		uint16_t *rev;
-		struct companion_read_cal_data read_cal;
-		struct msm_camera_i2c_reg_setting mode_setting;
-		struct companion_crc_check_param crc_check;
-		struct companion_fw_binary_param fw_bin;
-	} cfg;
-	uint16_t isDump;
-};
-
 enum eeprom_cfg_type_t {
 	CFG_EEPROM_GET_INFO,
 	CFG_EEPROM_GET_CAL_DATA,
@@ -540,9 +450,6 @@ enum eeprom_cfg_type_t {
 	CFG_EEPROM_ERASE,
 	CFG_EEPROM_POWER_ON,
 	CFG_EEPROM_POWER_OFF,
-#if defined(CONFIG_MSMB_CAMERA_S)
-	CFG_EEPROM_READ_DATA_FROM_HW,
-#endif
 };
 struct eeprom_get_t {
 	uint32_t num_bytes;
@@ -570,13 +477,9 @@ struct eeprom_erase_t {
 
 struct msm_eeprom_cfg_data {
 	enum eeprom_cfg_type_t cfgtype;
-#if defined(CONFIG_MSMB_CAMERA_S)
-	uint16_t is_supported;
-#else
 	uint8_t is_supported;
-#endif
 	union {
-		char eeprom_name[MAX_SENSOR_NAME];
+		char eeprom_name[MAX_EEPROM_NAME];
 		struct eeprom_get_t get_data;
 		struct eeprom_read_t read_data;
 		struct eeprom_write_t write_data;
@@ -796,13 +699,8 @@ struct ioctl_native_cmd {
 #define VIDIOC_MSM_SENSOR_INIT_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 9, struct sensor_init_cfg_data)
 
-#if defined(CONFIG_MSMB_CAMERA_S)
-#define VIDIOC_MSM_COMPANION_IO_CFG \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 10, struct companion_cfg_data)
-#else
 #define VIDIOC_MSM_SENSOR_NATIVE_CMD \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 10, struct ioctl_native_cmd)
-#endif
 
 #define MSM_V4L2_PIX_FMT_META v4l2_fourcc('M', 'E', 'T', 'A') /* META */
 

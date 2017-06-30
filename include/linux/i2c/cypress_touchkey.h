@@ -14,6 +14,14 @@
 extern struct class *sec_class;
 /* extern int ISSP_main(void); */
 
+/* DVFS feature : TOUCH BOOSTER */
+#define TSP_BOOSTER
+#ifdef TSP_BOOSTER
+#include <linux/cpufreq.h>
+
+#define TOUCH_BOOSTER_OFF_TIME	300
+#define TOUCH_BOOSTER_CHG_TIME	200
+#endif
 #ifdef CONFIG_LEDS_CLASS
 #include <linux/leds.h>
 #endif
@@ -43,13 +51,7 @@ extern struct class *sec_class;
 #define CYPRESS_55_IC_MASK	0x20
 #define CYPRESS_65_IC_MASK	0x04
 
-#define CYPRESS_DETECTION_FLAG		0x1B
-#define TK_CMD_INTERRUPT_SET_REG	0x18
-#define TK_CMD_DUAL_DETECTION		0x01
-#define TK_BIT_DETECTION_CONFIRM	0xEE
 #define NUM_OF_KEY		4
-
-#define TK_KEYPAD_ENABLE
 
 #ifdef TK_INFORM_CHARGER
 struct touchkey_callbacks {
@@ -110,6 +112,13 @@ struct cypress_touchkey_info {
 	bool enabled_flip;
 #endif
 
+#ifdef TSP_BOOSTER
+	struct delayed_work	work_dvfs_off;
+	struct delayed_work	work_dvfs_chg;
+	bool dvfs_lock_status;
+	struct mutex		dvfs_lock;
+#endif
+
 #ifdef TK_INFORM_CHARGER
 	struct touchkey_callbacks callbacks;
 	bool charging_mode;
@@ -120,9 +129,6 @@ struct cypress_touchkey_info {
 	int glove_value;
 #endif
 
-#ifdef TK_KEYPAD_ENABLE
-	atomic_t keypad_enable;
-#endif
 };
 
 void touchkey_charger_infom(bool en);

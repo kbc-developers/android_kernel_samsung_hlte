@@ -1041,11 +1041,11 @@ static void sec_bat_swelling_check(struct sec_battery_info *battery, int tempera
 				battery->swelling_block) {
 				pr_info("%s: swelling mode recharging start. Vbatt(%d)\n",
 					__func__, battery->voltage_now);
-				sec_bat_set_charge(battery, true);
 				/* change 4.25V float voltage */
 				val.intval = 4250;
 				psy_do_property(battery->pdata->charger_name, set,
 						POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
+				sec_bat_set_charge(battery, true);
 				battery->swelling_block = false;
 			}
 		}
@@ -1121,7 +1121,6 @@ static bool sec_bat_temperature_check(
 	} else if ((temp_value <= battery->temp_high_recovery) &&
 				(temp_value >= battery->temp_low_recovery)) {
 		if (battery->health == POWER_SUPPLY_HEALTH_OVERHEAT ||
-			battery->health == POWER_SUPPLY_HEALTH_OVERHEATLIMIT ||
 		    battery->health == POWER_SUPPLY_HEALTH_COLD) {
 			if (battery->temp_recover_cnt <
 				battery->pdata->temp_check_count)
@@ -1187,17 +1186,13 @@ static bool sec_bat_temperature_check(
 			 POWER_SUPPLY_STATUS_NOT_CHARGING)) {
 			dev_info(battery->dev,
 					"%s: Safe Temperature\n", __func__);
-			if (battery->capacity >= 100) {
+			if (battery->capacity >= 100)
 				battery->status =
 					POWER_SUPPLY_STATUS_FULL;
-				battery->is_recharging = true;
-			} else {/* Normal Charging */
+			else	/* Normal Charging */
 				battery->status =
 					POWER_SUPPLY_STATUS_CHARGING;
-			}
 			/* turn on charger by cable type */
-			battery->charging_mode =
-					SEC_BATTERY_CHARGING_1ST;
 			sec_bat_set_charge(battery, true);
 			return false;
 		}
@@ -1836,7 +1831,7 @@ static void sec_bat_get_battery_info(
 	union power_supply_propval value;
 #if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_VIENNAVZW) || defined(CONFIG_MACH_VIENNAKOR) || defined(CONFIG_MACH_V2) || \
 	defined(CONFIG_SEC_MILLET_PROJECT) || defined(CONFIG_SEC_MATISSE_PROJECT) || defined(CONFIG_SEC_DEGAS_PROJECT) || \
-	defined(CONFIG_AFC_CHARGER_MODE) || defined(CONFIG_MACH_KLTE_USC) || defined(CONFIG_MACH_KLIMT_VZW)
+	defined(CONFIG_AFC_CHARGER_MODE)
 	static struct timespec old_ts;
 	struct timespec c_ts;
 
@@ -1940,7 +1935,7 @@ static void sec_bat_get_battery_info(
 
 #if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_VIENNAVZW) || defined(CONFIG_MACH_VIENNAKOR) || defined(CONFIG_MACH_V2) || \
 	defined(CONFIG_SEC_MILLET_PROJECT) || defined(CONFIG_SEC_MATISSE_PROJECT) || defined(CONFIG_SEC_DEGAS_PROJECT) || \
-	defined(CONFIG_AFC_CHARGER_MODE) || defined(CONFIG_MACH_KLTE_USC) || defined(CONFIG_MACH_KLIMT_VZW)
+	defined(CONFIG_AFC_CHARGER_MODE)
 	/* if the battery status was full, and SOC wasn't 100% yet,
 		then ignore FG SOC, and report (previous SOC +1)% */
 	if (battery->status != POWER_SUPPLY_STATUS_FULL) {
@@ -2215,7 +2210,7 @@ static void sec_bat_monitor_work(
 		battery->polling_in_sleep = false;
 		if ((battery->status == POWER_SUPPLY_STATUS_DISCHARGING) &&
 			(battery->ps_enable != true)) {
-			if ((unsigned long)(c_ts.tv_sec - old_ts.tv_sec) < 5 * 60) {
+			if ((unsigned long)(c_ts.tv_sec - old_ts.tv_sec) < 10 * 60) {
 				pr_info("Skip monitor_work(%ld)\n",
 						c_ts.tv_sec - old_ts.tv_sec);
 				goto skip_monitor;
@@ -3464,9 +3459,6 @@ static int sec_bat_get_property(struct power_supply *psy,
 				case POWER_SUPPLY_TYPE_USB_DCP:
 				case POWER_SUPPLY_TYPE_USB_CDP:
 				case POWER_SUPPLY_TYPE_USB_ACA:
-#if defined(CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK)
-				case POWER_SUPPLY_TYPE_MDOCK_USB:
-#endif
 					val->intval =
 						POWER_SUPPLY_STATUS_DISCHARGING;
 					return 0;
@@ -3475,7 +3467,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 
 #if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_VIENNAVZW) || defined(CONFIG_MACH_VIENNAKOR) || defined(CONFIG_MACH_V2) || \
 	defined(CONFIG_SEC_MILLET_PROJECT) || defined(CONFIG_SEC_MATISSE_PROJECT) || \
-	defined(CONFIG_AFC_CHARGER_MODE) || defined(CONFIG_MACH_KLTE_USC) || defined(CONFIG_MACH_KLIMT_VZW)
+	defined(CONFIG_AFC_CHARGER_MODE)
 			if (battery->status == POWER_SUPPLY_STATUS_FULL &&
 				battery->capacity != 100) {
 				val->intval = POWER_SUPPLY_STATUS_CHARGING;
@@ -3563,7 +3555,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 #else
 #if defined(CONFIG_MACH_VIENNAEUR) || defined(CONFIG_MACH_VIENNAVZW) || defined(CONFIG_MACH_VIENNAKOR) || defined(CONFIG_MACH_V2) || \
 	defined(CONFIG_SEC_MILLET_PROJECT) || defined(CONFIG_SEC_MATISSE_PROJECT) || \
-	defined(CONFIG_AFC_CHARGER_MODE) || defined(CONFIG_MACH_KLTE_USC) || defined(CONFIG_MACH_KLIMT_VZW)
+	defined(CONFIG_AFC_CHARGER_MODE)
 		val->intval = battery->capacity;
 #else
 		/* In full-charged status, SOC is always 100% */
@@ -3617,9 +3609,6 @@ static int sec_usb_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_TYPE_USB_ACA:
 		case POWER_SUPPLY_TYPE_MHL_USB:
 		case POWER_SUPPLY_TYPE_MHL_USB_100:
-#if defined(CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK)
-		case POWER_SUPPLY_TYPE_MDOCK_USB:
-#endif
 			val->intval = 1;
 			break;
 		default:
@@ -3913,9 +3902,6 @@ static int sec_bat_cable_check(struct sec_battery_info *battery,
 	case EXTCON_SMARTDOCK_TA:
 #if defined(CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
 	case EXTCON_LANHUB_TA:
-#endif
-#if defined(CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK)
-	case EXTCON_MULTIMEDIADOCK:
 #endif
 		current_cable_type = POWER_SUPPLY_TYPE_MAINS;
 		break;

@@ -61,7 +61,7 @@
 #define BT_EN_GENERAL_GPIO
 #define GPIO_BT_EN 63
 #define BT_WAKE 9
-#elif defined(CONFIG_MACH_KLIMT_VZW) || defined(CONFIG_MACH_CHAGALL) || defined(CONFIG_MACH_KLIMT_LTE_DCM)
+#elif defined(CONFIG_MACH_KLIMT_VZW) || defined(CONFIG_MACH_CHAGALL)
 // general gpio
 #define BT_EN_GENERAL_GPIO
 #define GPIO_BT_EN 42

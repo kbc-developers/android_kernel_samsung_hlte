@@ -86,13 +86,6 @@ static struct msm_gpiomux_config gpio_nc_configs[] __initdata = {
 #if !defined(CONFIG_MACH_KACTIVELTE_DCM)
 	GPIOMUX_SET_NC(73),
 #endif
-#if defined(CONFIG_MACH_KACTIVELTE_EUR)
-	GPIOMUX_SET_NC(104),
-	GPIOMUX_SET_NC(119),
-	GPIOMUX_SET_NC(123),
-	GPIOMUX_SET_NC(126),
-	GPIOMUX_SET_NC(127),
-#endif
 	GPIOMUX_SET_NC(105),
 	GPIOMUX_SET_NC(111),
 	GPIOMUX_SET_NC(112),

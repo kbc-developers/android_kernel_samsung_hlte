@@ -553,11 +553,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 	qcom,msm-lsm-client {
 		compatible = "qcom,msm-lsm-client";
 	};
-	
-	qti,msm-pcm-loopback {
-		compatible = "qti,msm-pcm-loopback";
-	};
-	
+
 	qcom,msm-dai-q6 {
 		compatible = "qcom,msm-dai-q6";
 		qcom,msm-dai-q6-sb-0-rx {
@@ -831,7 +827,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 		interrupt-names = "core_irq", "bam_irq";
 
 		qcom,bus-width = <8>;
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdcc1";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -857,7 +853,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 		interrupt-names = "hc_irq", "pwr_irq";
 
 		qcom,bus-width = <8>;
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdhc1";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -888,7 +884,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 		interrupt-names = "core_irq", "bam_irq";
 
 		qcom,bus-width = <4>;
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdcc2";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -914,7 +910,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 		interrupt-names = "hc_irq", "pwr_irq";
 
 		qcom,bus-width = <4>;
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdhc2";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -941,7 +937,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 		reg-names = "core_mem", "dml_mem", "bam_mem";
 
 		qcom,bus-width = <4>;
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <701>;
 		gpios = <&msmgpio 44 0>, /* CLK */
 			<&msmgpio 43 0>, /* CMD */
 			<&msmgpio 42 0>, /* DATA0 */
@@ -985,7 +981,7 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
 		reg-names = "hc_mem", "core_mem";
 
 		qcom,bus-width = <4>;
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <701>;
 		gpios = <&msmgpio 44 0>, /* CLK */
 			<&msmgpio 43 0>, /* CMD */
 			<&msmgpio 42 0>, /* DATA0 */
@@ -1343,8 +1339,8 @@ This is causing conflict to IRLED driver in Millet Wifi US Open and thus disabli
                 qcom,msm-bus,num-cases = <2>;
                 qcom,msm-bus,num-paths = <1>;
                 qcom,msm-bus,vectors-KBps =
-                                <54 618 0 0>,
-                                <54 618 0 800>;
+                                <1 618 0 0>,
+                                <1 618 0 800>;
 	};
 
 	qcom,tz-log@fe805720 {

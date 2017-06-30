@@ -124,21 +124,10 @@ static int vibrator_work;
 #define PWM_THRESH 75
 #define PWM_MAX 100
 
-struct vibrator_platform_data vibrator_drvdata;
-
-/*
- * msm8974_sec tspdrv vibration strength control
- * (/sys/vibrator/pwm_val)
- *
- * sysfs pwm_val
- *    range   : 0 - 100 (100 = old hardcoded value)
- *
- * Author : Park Ju Hyung <qkrwngud825@gmail.com>
- * Modified by : Jean-Pierre Rasquin <yank555.lu@gmail.com>
- */
-
 #define BASE_STRENGTH 126
 static unsigned int pwm_val = PWM_DEFAULT;
+
+struct vibrator_platform_data vibrator_drvdata;
 
 static int set_vibetonz(int timeout)
 {
@@ -172,7 +161,7 @@ static ssize_t pwm_value_show(struct device *dev, struct device_attribute *attr,
 }
 
 ssize_t pwm_value_store(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
+				const char *buf, size_t count)
 {
 	unsigned int new_pwm_val;
 
@@ -181,7 +170,7 @@ ssize_t pwm_value_store(struct device *dev, struct device_attribute *attr,
 
 	if (new_pwm_val < PWM_MIN || new_pwm_val > PWM_MAX) {
 		pr_info("[VIB] %s: new pwm_val %d is out of [%d, %d] range\n",
-		        __func__, pwm_val, PWM_MIN, PWM_MAX);
+			__func__, pwm_val, PWM_MIN, PWM_MAX);
 		return -EINVAL;
 	} else {
 		pr_info("[VIB] %s: pwm_val=%d\n", __func__, pwm_val);

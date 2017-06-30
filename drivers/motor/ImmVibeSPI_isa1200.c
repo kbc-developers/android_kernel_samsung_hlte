@@ -206,22 +206,10 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_Terminate(void)
     return VIBE_S_SUCCESS;
 }
 
-#ifdef CONFIG_VIBRATOR_UPDATE
-static bool g_bOutputDataBufferEmpty = 1;
-#endif
 IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_SetSamples(u_int8_t nActuatorIndex,u_int16_t nOutputSignalBitDepth,u_int16_t nBufferSizeInBytes,int8_t *pForceOutputBuffer)
 {
 	int8_t nforce;
 	static int8_t pre_nforce;
-#ifdef CONFIG_VIBRATOR_UPDATE
-	if (g_bOutputDataBufferEmpty) {
-		nActuatorIndex = 0;
-		nOutputSignalBitDepth = 8;
-		nBufferSizeInBytes = 1;
-		pForceOutputBuffer[0] = 0;
-	}
-#endif
-
 	switch (nOutputSignalBitDepth) {
 		case 8:
 			/* pForceOutputBuffer is expected to contain 1 byte */

@@ -63,7 +63,7 @@ struct scfs_compressor *scfs_compressors[SCFS_COMP_TOTAL_TYPES];
 int scfs_compress_crypto(const void *in_buf, size_t in_len, void *out_buf, size_t *out_len,
 		    int compr_type)
 {
-	int err = 0;
+	int err;
 	struct scfs_compressor *compr = scfs_compressors[compr_type];
 	unsigned int tmp_len;
 

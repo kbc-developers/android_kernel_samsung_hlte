@@ -399,12 +399,6 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 		perf->bw_overlap = (quota / dst.h) * v_total;
 	}
 
-     /* The following change has been taken from CL 2767750. The bw has been increased as a fix
-      * for underrun during UHD video play cases. */
-	if ( ((pipe->src.h * pipe->src.w) / (pipe->dst.h * pipe->dst.w)) > 6) {
-		perf->bw_overlap = perf->bw_overlap * 2;
-	}
-
 	if (apply_fudge)
 		perf->mdp_clk_rate = mdss_mdp_clk_fudge_factor(mixer, rate);
 	else
@@ -716,13 +710,12 @@ int mdss_mdp_perf_bw_check(struct mdss_mdp_ctl *ctl,
 
 	__mdss_mdp_perf_calc_ctl_helper(ctl, &perf,
 			left_plist, left_cnt, right_plist, right_cnt);
-
 	ctl->bw_pending = perf.bw_ctl;
- 
+
 	for (i = 0; i < mdata->nctl; i++) {
-	struct mdss_mdp_ctl *temp = mdata->ctl_off + i;
-	if (temp->power_on && (temp->intf_type != MDSS_MDP_NO_INTF))
-	bw_sum_of_intfs += temp->bw_pending;
+		struct mdss_mdp_ctl *temp = mdata->ctl_off + i;
+		if (temp->power_on && (temp->intf_type != MDSS_MDP_NO_INTF))
+			bw_sum_of_intfs += temp->bw_pending;
 	}
 
 	/* convert bandwidth to kb */
@@ -730,9 +723,10 @@ int mdss_mdp_perf_bw_check(struct mdss_mdp_ctl *ctl,
 	pr_debug("calculated bandwidth=%uk\n", bw);
 
 	threshold = (ctl->is_video_mode ||
-	mdss_mdp_video_mode_intf_connected(ctl)) ?
-	mdata->max_bw_low : mdata->max_bw_high;
+		mdss_mdp_video_mode_intf_connected(ctl)) ?
+		mdata->max_bw_low : mdata->max_bw_high;
 	if (bw > threshold) {
+		ctl->bw_pending = 0;
 		pr_debug("exceeds bandwidth: %ukb > %ukb\n", bw, threshold);
 		return -E2BIG;
 	}
@@ -752,7 +746,8 @@ static void mdss_mdp_perf_calc_ctl(struct mdss_mdp_ctl *ctl,
 			left_plist, (left_plist ? MDSS_MDP_MAX_STAGE : 0),
 			right_plist, (right_plist ? MDSS_MDP_MAX_STAGE : 0));
 
-	if (ctl->is_video_mode || mdss_mdp_video_mode_intf_connected(ctl)) {
+	if (ctl->is_video_mode || ((ctl->intf_type != MDSS_MDP_NO_INTF) &&
+		mdss_mdp_video_mode_intf_connected(ctl))) {
 		perf->bw_ctl =
 			max(apply_fudge_factor(perf->bw_overlap,
 				&mdss_res->ib_factor_overlap),
@@ -2656,12 +2651,6 @@ int mdss_mdp_display_commit(struct mdss_mdp_ctl *ctl, void *arg)
 	int mixer1_changed, mixer2_changed;
 	int ret = 0;
 	bool is_bw_released;
-	
-#ifdef CONFIG_FB_MSM_CAMERA_CSC
-	struct mdss_overlay_private *mdp5_data = NULL;
-	if(ctl->mfd)
-		mdp5_data = mfd_to_mdp5_data(ctl->mfd);
-#endif
 
 	if (!ctl) {
 		pr_err("display function not set\n");
@@ -2735,25 +2724,7 @@ int mdss_mdp_display_commit(struct mdss_mdp_ctl *ctl, void *arg)
 	if (ctl->wait_pingpong)
 		ctl->wait_pingpong(ctl, NULL);
 	ATRACE_END("wait_pingpong");
-	
-#ifdef CONFIG_FB_MSM_CAMERA_CSC
-	if(mdp5_data)
-	{
-		mutex_lock(&mdp5_data->list_lock);
-		if (csc_change == 1) {
-			struct mdss_mdp_pipe *pipe, *next;
-			list_for_each_entry_safe(pipe, next, &mdp5_data->pipes_used, list) {
-				if (pipe->type == MDSS_MDP_PIPE_TYPE_VIG){
-					pr_info(" mdss_mdp_csc_setup start\n");
-					mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num, 1,
-									MDSS_MDP_CSC_YUV2RGB);
-					csc_change = 0;
-				}
-			}
-		}
-		mutex_unlock(&mdp5_data->list_lock);
-	}
-#endif
+
 	ctl->roi_bkup.w = ctl->roi.w;
 	ctl->roi_bkup.h = ctl->roi.h;
 

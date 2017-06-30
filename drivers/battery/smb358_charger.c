@@ -756,9 +756,6 @@ static void smb358_charger_function_control(
 		case POWER_SUPPLY_TYPE_MHL_900:
 		case POWER_SUPPLY_TYPE_MHL_1500:
 		case POWER_SUPPLY_TYPE_SMART_NOTG:
-#if defined(CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK)
-		case POWER_SUPPLY_TYPE_MDOCK_TA:
-#endif
                     /* High-current mode */
                     data = 0x03;
 			break;
@@ -770,9 +767,6 @@ static void smb358_charger_function_control(
 		case POWER_SUPPLY_TYPE_MHL_USB:
 		case POWER_SUPPLY_TYPE_SMART_OTG:
 		case POWER_SUPPLY_TYPE_POWER_SHARING:
-#if defined(CONFIG_MUIC_SUPPORT_MULTIMEDIA_DOCK)
-		case POWER_SUPPLY_TYPE_MDOCK_USB:
-#endif
 			/* USB5 */
 			data = 0x02;
 			break;

@@ -24,9 +24,9 @@
 #include "audio_utils.h"
 
 #define MIN_FRAME_SIZE  1536
-#define NUM_FRAMES      5
-#define META_SIZE       (sizeof(struct meta_out_dsp))
-#define FRAME_SIZE      (1 + ((MIN_FRAME_SIZE + META_SIZE) * NUM_FRAMES))
+#define NUM_FRAMES     5
+#define META_SIZE      (sizeof(struct meta_out_dsp))
+#define FRAME_SIZE     (1 + ((MIN_FRAME_SIZE + META_SIZE) * NUM_FRAMES))
 
 static int audio_in_pause(struct q6audio_in  *audio)
 {
@@ -495,7 +495,7 @@ ssize_t audio_in_read(struct file *file,
 			count -= bytes_to_copy;
 			buf += bytes_to_copy;
 		} else {
-			pr_err("%s:session id %d: short read data[%p] bytesavail[%d]bytesrequest[%d]\n",
+			pr_err("%s:session id %d: short read data[%pK] bytesavail[%d]bytesrequest[%d]\n",
 				__func__,
 				audio->ac->session,
 				data, size, count);
